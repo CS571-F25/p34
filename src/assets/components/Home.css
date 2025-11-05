@@ -1,0 +1,365 @@
+/* Styling for the fantasy football home experience */
+.home {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 3rem;
+  text-align: left;
+  color: #0f172a;
+}
+
+.hero {
+  background: radial-gradient(circle at top left, #3b82f6, #1d4ed8);
+  color: #f8fafc;
+  padding: 3.25rem;
+  border-radius: 28px;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 24px 48px rgba(15, 23, 42, 0.25);
+}
+
+.hero::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, transparent 40%, rgba(148, 163, 184, 0.35));
+  mix-blend-mode: screen;
+  pointer-events: none;
+}
+
+.hero__tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.9rem;
+  background-color: rgba(15, 23, 42, 0.4);
+  border: 1px solid rgba(226, 232, 240, 0.3);
+  border-radius: 999px;
+  font-size: 0.85rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.hero__title {
+  font-size: clamp(2.5rem, 5vw, 3.4rem);
+  margin: 1.2rem 0 1rem;
+  font-weight: 700;
+}
+
+.hero__subtitle {
+  max-width: 28rem;
+  font-size: 1.1rem;
+  line-height: 1.6;
+  color: rgba(241, 245, 249, 0.92);
+}
+
+.hero__cta {
+  margin-top: 2rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.85rem;
+}
+
+.hero__meta {
+  margin-top: 2rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+  font-size: 0.95rem;
+  color: rgba(226, 232, 240, 0.8);
+}
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.85rem 1.6rem;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 0.98rem;
+  text-decoration: none;
+  transition: all 0.25s ease;
+}
+
+.button--primary {
+  background: #facc15;
+  color: #0f172a;
+  box-shadow: 0 12px 22px rgba(250, 204, 21, 0.25);
+}
+
+.button--primary:hover {
+  background: #fbbf24;
+  transform: translateY(-1px);
+  box-shadow: 0 15px 28px rgba(234, 179, 8, 0.35);
+}
+
+.button--accent {
+  background: linear-gradient(135deg, #22d3ee, #1d4ed8);
+  color: #f8fafc;
+  box-shadow: 0 14px 26px rgba(14, 116, 144, 0.3);
+}
+
+.button--accent:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 18px 32px rgba(14, 116, 144, 0.35);
+}
+
+.button--ghost {
+  background: rgba(15, 23, 42, 0.25);
+  color: #f8fafc;
+  border: 1px solid rgba(226, 232, 240, 0.4);
+}
+
+.button--ghost:hover {
+  background: rgba(15, 23, 42, 0.35);
+  transform: translateY(-1px);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 1.75rem;
+}
+
+.section--alt {
+  background: linear-gradient(135deg, #f8fafc, #e0f2fe);
+  border-radius: 24px;
+  padding: 2.5rem;
+}
+
+.section--cta {
+  background: linear-gradient(135deg, #0f172a, #1e293b);
+  color: #f8fafc;
+  padding: 2.75rem;
+  border-radius: 24px;
+  align-items: flex-start;
+}
+
+.section__header h2 {
+  font-size: 1.9rem;
+  margin-bottom: 0.35rem;
+  color: #0f172a;
+}
+
+.section--alt .section__header h2,
+.section--cta .section__header h2 {
+  color: inherit;
+}
+
+.section__header p {
+  color: #475569;
+  max-width: 32rem;
+}
+
+.section--alt .section__header p {
+  color: #334155;
+}
+
+.section--cta p {
+  color: rgba(248, 250, 252, 0.82);
+}
+
+.matchup-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.75rem;
+}
+
+.matchup-card {
+  background: linear-gradient(135deg, #e0f2fe, #bfdbfe);
+  border-radius: 22px;
+  padding: 1.9rem;
+  position: relative;
+  overflow: hidden;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+.matchup-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(160deg, rgba(14, 116, 144, 0.15), transparent 55%);
+  pointer-events: none;
+}
+
+.matchup-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.95rem;
+  color: #0f172a;
+}
+
+.matchup-card__storyline {
+  margin: 0.9rem 0 1.2rem;
+  font-size: 0.95rem;
+  color: #1e293b;
+}
+
+.matchup-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.matchup-card__team {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(255, 255, 255, 0.55);
+  border-radius: 18px;
+  padding: 0.9rem 1.1rem;
+  backdrop-filter: blur(6px);
+}
+
+.matchup-card__team h4 {
+  margin: 0;
+  font-size: 1.05rem;
+  color: #0f172a;
+}
+
+.matchup-card__team span {
+  font-size: 0.85rem;
+  color: #334155;
+}
+
+.matchup-card__team strong {
+  font-size: 1.4rem;
+  color: #0f172a;
+}
+
+.matchup-card__footer {
+  margin-top: 1.25rem;
+  font-size: 0.83rem;
+  color: #1e293b;
+}
+
+.feature-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1.5rem;
+}
+
+.feature-card {
+  background: white;
+  border-radius: 18px;
+  padding: 1.6rem;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
+}
+
+.feature-card h3 {
+  margin-bottom: 0.7rem;
+  color: #0f172a;
+}
+
+.feature-card p {
+  color: #475569;
+  line-height: 1.6;
+}
+
+.leaders {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  border-radius: 18px;
+  border: 1px solid #e2e8f0;
+  overflow: hidden;
+}
+
+.leaders__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.4rem;
+  background: white;
+}
+
+.leaders__row:nth-child(odd) {
+  background: #f8fafc;
+}
+
+.leaders__rank {
+  font-weight: 700;
+  color: #1d4ed8;
+}
+
+.leaders__team strong {
+  display: block;
+  color: #0f172a;
+}
+
+.leaders__team span {
+  font-size: 0.9rem;
+  color: #475569;
+}
+
+.leaders__points {
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.spotlight-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 1.5rem;
+}
+
+.spotlight-card {
+  background: white;
+  border-radius: 18px;
+  padding: 1.6rem;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.08);
+}
+
+.spotlight-card h3 {
+  margin-bottom: 0.4rem;
+  color: #0f172a;
+}
+
+.spotlight-card__meta {
+  display: block;
+  font-size: 0.9rem;
+  color: #1d4ed8;
+  margin-bottom: 0.75rem;
+}
+
+.spotlight-card p {
+  color: #475569;
+  line-height: 1.6;
+}
+
+@media (max-width: 768px) {
+  .hero {
+    padding: 2.6rem;
+  }
+
+  .section--alt,
+  .section--cta {
+    padding: 2rem;
+  }
+
+  .hero__meta {
+    flex-direction: column;
+    gap: 0.8rem;
+  }
+}
+
+@media (max-width: 540px) {
+  .hero {
+    padding: 2.2rem;
+  }
+
+  .hero__cta {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .hero__subtitle {
+    max-width: 100%;
+  }
+}

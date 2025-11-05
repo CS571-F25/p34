@@ -1,0 +1,123 @@
+.app-shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(180deg, #f0f9ff 0%, #f8fafc 60%, #e2e8f0 100%);
+  color: #0f172a;
+}
+
+.app-header {
+  padding: 2.5rem 3rem 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.75rem;
+}
+
+.app-header__brand {
+  display: flex;
+  align-items: center;
+  gap: 1.2rem;
+}
+
+.app-header__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #facc15, #f97316);
+  color: #0f172a;
+  font-weight: 800;
+  font-size: 1.35rem;
+  letter-spacing: 0.04em;
+  box-shadow: 0 18px 32px rgba(234, 179, 8, 0.35);
+}
+
+.app-header__brand h1 {
+  margin: 0;
+  font-size: clamp(2rem, 4vw, 2.7rem);
+  font-weight: 700;
+}
+
+.app-header__brand p {
+  margin: 0.35rem 0 0;
+  font-size: 1rem;
+  color: #475569;
+}
+
+.app-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 1rem;
+  background: rgba(15, 23, 42, 0.05);
+  border-radius: 18px;
+  padding: 0.5rem;
+  width: fit-content;
+  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.12);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+}
+
+.app-nav__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 1.3rem;
+  border-radius: 14px;
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: #1e293b;
+  text-decoration: none;
+  transition: all 0.2s ease;
+}
+
+.app-nav__link:hover {
+  background: rgba(59, 130, 246, 0.18);
+  color: #1d4ed8;
+}
+
+.app-nav__link--active {
+  background: linear-gradient(135deg, #1d4ed8, #38bdf8);
+  color: #f8fafc;
+  box-shadow: 0 16px 28px rgba(14, 116, 144, 0.25);
+}
+
+.app-main {
+  flex: 1;
+  padding: 0 3rem 4rem;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+}
+
+@media (max-width: 900px) {
+  .app-header {
+    padding: 2rem;
+  }
+
+  .app-main {
+    padding: 0 2rem 3rem;
+  }
+}
+
+@media (max-width: 620px) {
+  .app-header__brand {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .app-nav {
+    width: 100%;
+    justify-content: space-between;
+    gap: 0.4rem;
+  }
+
+  .app-nav__link {
+    flex: 1;
+    justify-content: center;
+  }
+
+  .app-main {
+    padding: 0 1.5rem 2.5rem;
+  }
+}
