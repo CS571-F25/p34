@@ -1,9 +1,12 @@
 import { NavLink, Outlet } from 'react-router'
+import NavbarDropdown from './NavbarDropdown.jsx'
 import './Layout.css'
+import { Nav } from 'react-bootstrap'
 
 const navLinks = [
   { to: '/', label: 'Home' },
   { to: '/players', label: 'Players' },
+  { to: '/league', label: 'League Stats' },
   { to: '/about', label: 'About' }
 ]
 
@@ -26,12 +29,17 @@ export default function Layout() {
               to={link.to}
               end={link.to === '/'}
               className={({ isActive }) =>
-                ['app-nav__link', isActive ? 'app-nav__link--active' : null].filter(Boolean).join(' ')
+                ['app-nav__link', isActive ? 'app-nav__link--active' : null]
+                  .filter(Boolean)
+                  .join(' ')
               }
             >
               {link.label}
             </NavLink>
           ))}
+
+          {/* Bootstrap dropdown */}
+          <NavbarDropdown />
         </nav>
       </header>
 
