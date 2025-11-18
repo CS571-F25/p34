@@ -1,49 +1,36 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router'
 import './Players.css'
-import { toggleWatchlistPlayer, isPlayerWatched } from "../utils/Watchlist"
 
-/* Global player cache so PlayerDetails.jsx can read the selected player */
+/**
+ * Global cache so other pages (PlayerDetails, Teams, Watchlist, etc.)
+ * can access the same player list.
+ */
 window.__GLOBAL_PLAYERS__ = []
 
-const CURRENT_SEASON = (() => {
-  const today = new Date()
-  const month = today.getMonth()
-  const year = today.getFullYear()
-  return month >= 6 ? year : year - 1
-})()
+/** We are explicitly using 2024 PPR stats for now. */
+const STATS_SEASON = 2024
 
-// Sample (fallback) players
-const FALLBACK_PLAYERS = [
-  {
-    id: 'player-mahomes',
-    name: 'Patrick Mahomes',
-    position: 'QB',
-    team: 'KC',
-    teamName: 'Kansas City Chiefs',
-    points: 229.4,
-    avgPoints: 25.5,
-    status: 'Active',
-    byeWeek: 10
-  },
-  {
-    id: 'player-allen',
-    name: 'Josh Allen',
-    position: 'QB',
-    team: 'BUF',
-    teamName: 'Buffalo Bills',
-    points: 238.2,
-    avgPoints: 26.5,
-    status: 'Active',
-    byeWeek: 13
-  }
-]
+/** Only fantasy-relevant offensive positions. */
+const ALLOWED_POSITIONS = ['QB', 'RB', 'WR', 'TE', 'K', 'DST']
 
-// Mapping for team names
+/** Filter out clearly inactive / FA / retired players. */
+function isInactive(status = '', team = '') {
+  const s = status.toLowerCase()
+  const t = team.toUpperCase()
+
+  if (s.includes('ret')) return true           // retired
+  if (s.includes('former')) return true
+  if (!t || t === 'FA' || t === 'NONE') return true
+
+  return false
+}
+
 const TEAM_DETAILS = {
-  FA: { name: 'Free Agent' },
   ATL: { name: 'Atlanta Falcons' },
+  BAL: { name: 'Baltimore Ravens' },
   BUF: { name: 'Buffalo Bills' },
+  CAR: { name: 'Carolina Panthers' },
   CHI: { name: 'Chicago Bears' },
   CIN: { name: 'Cincinnati Bengals' },
   CLE: { name: 'Cleveland Browns' },
@@ -51,10 +38,12 @@ const TEAM_DETAILS = {
   DEN: { name: 'Denver Broncos' },
   DET: { name: 'Detroit Lions' },
   GB: { name: 'Green Bay Packers' },
-  TEN: { name: 'Tennessee Titans' },
+  HOU: { name: 'Houston Texans' },
   IND: { name: 'Indianapolis Colts' },
+  JAX: { name: 'Jacksonville Jaguars' },
   KC: { name: 'Kansas City Chiefs' },
   LV: { name: 'Las Vegas Raiders' },
+  LAC: { name: 'Los Angeles Chargers' },
   LAR: { name: 'Los Angeles Rams' },
   MIA: { name: 'Miami Dolphins' },
   MIN: { name: 'Minnesota Vikings' },
@@ -63,140 +52,136 @@ const TEAM_DETAILS = {
   NYG: { name: 'New York Giants' },
   NYJ: { name: 'New York Jets' },
   PHI: { name: 'Philadelphia Eagles' },
-  ARI: { name: 'Arizona Cardinals' },
   PIT: { name: 'Pittsburgh Steelers' },
-  LAC: { name: 'Los Angeles Chargers' },
-  SF: { name: 'San Francisco 49ers' },
   SEA: { name: 'Seattle Seahawks' },
+  SF: { name: 'San Francisco 49ers' },
   TB: { name: 'Tampa Bay Buccaneers' },
-  WAS: { name: 'Washington Commanders' },
-  CAR: { name: 'Carolina Panthers' },
-  JAX: { name: 'Jacksonville Jaguars' },
-  BAL: { name: 'Baltimore Ravens' },
-  HOU: { name: 'Houston Texans' }
+  TEN: { name: 'Tennessee Titans' },
+  WAS: { name: 'Washington Commanders' }
 }
-
-const POSITION_FILTERS = ['QB', 'RB', 'WR', 'TE', 'K', 'DST']
 
 const SORT_OPTIONS = [
   { id: 'points', label: 'Total Points (High → Low)', compare: (a, b) => b.points - a.points },
   { id: 'avg', label: 'Average Points (High → Low)', compare: (a, b) => b.avgPoints - a.avgPoints },
-  { id: 'name', label: 'Name (A → Z)', compare: (a, b) => a.name.localeCompare(b.name) },
-  { id: 'team', label: 'Team (A → Z)', compare: (a, b) => a.team.localeCompare(b.team) }
+  { id: 'name', label: 'Name A → Z', compare: (a, b) => a.name.localeCompare(b.name) },
+  { id: 'team', label: 'Team A → Z', compare: (a, b) => a.team.localeCompare(b.team) }
 ]
 
 export default function Players() {
-  const [players, setPlayers] = useState(FALLBACK_PLAYERS)
-  const [searchTerm, setSearchTerm] = useState('')
+  const [players, setPlayers] = useState([])
+  const [search, setSearch] = useState('')
   const [position, setPosition] = useState('ALL')
   const [team, setTeam] = useState('ALL')
   const [sortId, setSortId] = useState('points')
-  const [showOnlyActive, setShowOnlyActive] = useState(false)
+  const [activeOnly, setActiveOnly] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [isLive, setIsLive] = useState(false)
   const [error, setError] = useState('')
-  const [isLiveData, setIsLiveData] = useState(false)
 
   useEffect(() => {
-    let isCancelled = false
+    let cancelled = false
 
-    async function loadPlayers() {
+    async function load() {
       try {
         setLoading(true)
 
-        // Sleeper API
-        const [playersResponse, statsResponse] = await Promise.all([
-          fetch('https://api.sleeper.app/v1/players/nfl'),
-          fetch(
-            `https://api.sleeper.app/v1/stats/nfl/regular/${CURRENT_SEASON}?season_type=regular&grouping=player&positions[]=QB&positions[]=RB&positions[]=WR&positions[]=TE&positions[]=K&positions[]=DEF&order_by=pts_ppr`
-          )
-        ])
+        // Sleeper players + stats, 2024 PPR
+        const playersResp = await fetch('https://api.sleeper.com/players/nfl')
+        const statsResp = await fetch(
+          `https://api.sleeper.com/stats/nfl/regular/${STATS_SEASON}?season_type=regular`
+        )
 
-        if (!playersResponse.ok || !statsResponse.ok) throw new Error("Sleeper API offline")
+        if (!playersResp.ok) throw new Error('Sleeper players API failed')
+        if (!statsResp.ok) throw new Error('Sleeper stats API failed')
 
-        const playersPayload = await playersResponse.json()
-        const statsPayloadRaw = await statsResponse.json()
-        const statsPayload = Array.isArray(statsPayloadRaw)
-          ? statsPayloadRaw.reduce((acc, entry) => {
-              if (entry?.player_id) acc[entry.player_id] = entry
-              return acc
-            }, {})
-          : statsPayloadRaw
+        const rawPlayers = await playersResp.json()
+        const statsRaw = (await statsResp.json()) || {}
 
-        const sleeper = Object.values(playersPayload)
-          .map((p) => normalizeSleeperPlayer(p, statsPayload[p.player_id]))
-          .filter(Boolean)
+        // Stats may come back as an object or an array; normalize to a map keyed by player_id (string)
+        let statsById = {}
 
-        // NFLfastR API
-        let nflFastR = []
-        try {
-          const nflResp = await fetch(`https://api.nflfastR.com/player_stats?season=${CURRENT_SEASON}`)
-          if (nflResp.ok) {
-            const nflJson = await nflResp.json()
-            nflFastR = nflJson.map(normalizeFastRPlayer).filter(Boolean)
+        if (Array.isArray(statsRaw)) {
+          for (const entry of statsRaw) {
+            if (!entry || entry.player_id == null) continue
+            statsById[String(entry.player_id)] = entry
           }
-        } catch (err) {
-          console.log("FastR failed, continuing with Sleeper only.")
+        } else {
+          // assume already keyed by player_id
+          for (const key of Object.keys(statsRaw)) {
+            statsById[String(key)] = statsRaw[key]
+          }
         }
 
-        const merged = [...sleeper, ...nflFastR]
-          .sort((a, b) => b.points - a.points)
-          .slice(0, 500)
+        const sleeperPlayers = Object.values(rawPlayers)
+          .map((p) => {
+            const stat = statsById[String(p.player_id)] || {}
+            return normalizeSleeperPlayer(p, stat)
+          })
+          .filter(Boolean)
 
-        if (!isCancelled && merged.length > 0) {
-          window.__GLOBAL_PLAYERS__ = merged
-          setPlayers(merged)
-          setIsLiveData(true)
+        if (!cancelled) {
+          window.__GLOBAL_PLAYERS__ = sleeperPlayers
+          setPlayers(sleeperPlayers)
+          setIsLive(true) // live-ish, but using 2024 archive
           setError('')
         }
       } catch (err) {
-        if (!isCancelled) {
-          console.error(err)
-          window.__GLOBAL_PLAYERS__ = FALLBACK_PLAYERS
-          setPlayers(FALLBACK_PLAYERS)
-          setIsLiveData(false)
-          setError('Live API unavailable — showing sample data.')
+        console.error(err)
+        if (!cancelled) {
+          setPlayers([])
+          setIsLive(false)
+          setError('Could not load live stats right now.')
         }
       } finally {
-        if (!isCancelled) setLoading(false)
+        if (!cancelled) setLoading(false)
       }
     }
 
-    loadPlayers()
-    return () => (isCancelled = true)
+    load()
+    return () => {
+      cancelled = true
+    }
   }, [])
 
-  const teams = useMemo(() => {
-    const unique = new Set(players.map((p) => p.team))
-    return Array.from(unique).sort()
-  }, [players])
+  // Team dropdown options
+  const teams = useMemo(
+    () => Array.from(new Set(players.map((p) => p.team))).sort(),
+    [players]
+  )
 
-  const sortedPlayers = useMemo(() => {
-    const { compare } = SORT_OPTIONS.find((opt) => opt.id === sortId)
+  // Filter + sort (ensure numbers before sorting by points/avg)
+  const filtered = useMemo(() => {
+    const sorter = SORT_OPTIONS.find((s) => s.id === sortId)
+
     return players
       .filter((p) => {
-        const matchName = p.name.toLowerCase().includes(searchTerm.toLowerCase())
+        const matchName = p.name.toLowerCase().includes(search.toLowerCase())
         const matchPos = position === 'ALL' || p.position === position
         const matchTeam = team === 'ALL' || p.team === team
-        const matchStatus = !showOnlyActive || p.status === 'Active'
-        return matchName && matchPos && matchTeam && matchStatus
+        const matchActive = !activeOnly || p.status === 'Active'
+        return matchName && matchPos && matchTeam && matchActive
       })
-      .sort(compare)
-  }, [players, searchTerm, position, team, sortId, showOnlyActive])
+      .map((p) => ({
+        ...p,
+        points: Number(p.points),
+        avgPoints: Number(p.avgPoints)
+      }))
+      .sort(sorter.compare)
+  }, [players, search, position, team, sortId, activeOnly])
 
   return (
     <div className="players-page">
       <header className="players-page__hero">
-        <div className="players-page__tag">Player Universe</div>
         <h1>BLT Fantasy Player Hub</h1>
-        <p>
-          Scout every rosterable option in seconds. Filter by position or squad, compare fantasy output, and track who’s ready for a waiver claim.
-        </p>
+        <p>Explore 2024 PPR performance for every fantasy-relevant player.</p>
 
         <div className="players-page__status">
-          <span className={`status-pill ${isLiveData ? 'status-pill--success' : 'status-pill--warning'}`}>
-            {isLiveData
-              ? `Live Data • Season ${CURRENT_SEASON}`
-              : 'Using Sample Data'}
+          <span
+            className={`status-pill ${
+              isLive ? 'status-pill--success' : 'status-pill--warning'
+            }`}
+          >
+            2024 PPR Season Data
           </span>
           {error && <span className="status-pill__message">{error}</span>}
         </div>
@@ -207,19 +192,23 @@ export default function Players() {
         <div className="filter-control">
           <label>Search</label>
           <input
-            type="search"
-            placeholder="Search player name"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search players…"
           />
         </div>
 
         <div className="filter-control">
           <label>Position</label>
-          <select value={position} onChange={(e) => setPosition(e.target.value)}>
+          <select
+            value={position}
+            onChange={(e) => setPosition(e.target.value)}
+          >
             <option value="ALL">All</option>
-            {POSITION_FILTERS.map((pos) => (
-              <option key={pos} value={pos}>{pos}</option>
+            {ALLOWED_POSITIONS.map((pos) => (
+              <option key={pos} value={pos}>
+                {pos}
+              </option>
             ))}
           </select>
         </div>
@@ -239,9 +228,9 @@ export default function Players() {
         <div className="filter-control">
           <label>Sort</label>
           <select value={sortId} onChange={(e) => setSortId(e.target.value)}>
-            {SORT_OPTIONS.map((opt) => (
-              <option key={opt.id} value={opt.id}>
-                {opt.label}
+            {SORT_OPTIONS.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.label}
               </option>
             ))}
           </select>
@@ -251,154 +240,115 @@ export default function Players() {
           <label>
             <input
               type="checkbox"
-              checked={showOnlyActive}
-              onChange={(e) => setShowOnlyActive(e.target.checked)}
+              checked={activeOnly}
+              onChange={(e) => setActiveOnly(e.target.checked)}
             />
-            Show Active Only
+            Active Only
           </label>
         </div>
       </section>
 
       {/* Grid */}
       <section className="players-grid">
-        {loading && (
-          <div className="players-grid__loading">
-            <h2>Loading players…</h2>
-            <p>Fetching the latest fantasy projections.</p>
-          </div>
-        )}
+        {loading && <h2>Loading players…</h2>}
 
-        {!loading && sortedPlayers.length === 0 && (
-          <div className="players-grid__empty">
-            <h2>No results found.</h2>
-            <p>Try adjusting your filters.</p>
-          </div>
-        )}
+        {!loading &&
+          filtered.map((player) => (
+            <article key={player.id} className="player-card">
+              <header className="player-card__header">
+                <span
+                  className={`player-card__position player-card__position--${player.position.toLowerCase()}`}
+                >
+                  {player.position}
+                </span>
+                <span
+                  className={`player-card__status player-card__status--${player.status.toLowerCase()}`}
+                >
+                  {player.status}
+                </span>
+              </header>
 
-        {sortedPlayers.map((player) => (
-          <article key={player.id} className="player-card">
-            <header className="player-card__header">
-              <span className={`player-card__position player-card__position--${player.position.toLowerCase()}`}>
-                {player.position}
-              </span>
-              <span className={`player-card__status player-card__status--${player.status.toLowerCase().replace(/\s+/g, '-')}`}>
-                {player.status}
-              </span>
-            </header>
+              <h3>{player.name}</h3>
+              <p className="player-card__team">
+                {player.team} · {player.teamName}
+              </p>
 
-            <h3>{player.name}</h3>
-            <p className="player-card__team">
-              {player.team} · {player.teamName}
-            </p>
+              <dl className="player-card__metrics">
+                <div>
+                  <dt>Total</dt>
+                  <dd>{player.points.toFixed(1)}</dd>
+                </div>
+                <div>
+                  <dt>Avg</dt>
+                  <dd>{player.avgPoints.toFixed(1)}</dd>
+                </div>
+                <div>
+                  <dt>Bye</dt>
+                  <dd>{player.byeWeek ?? '-'}</dd>
+                </div>
+              </dl>
 
-            <dl className="player-card__metrics">
-              <div>
-                <dt>Total Points</dt>
-                <dd>{player.points.toFixed(1)}</dd>
-              </div>
-              <div>
-                <dt>Avg/Game</dt>
-                <dd>{player.avgPoints.toFixed(1)}</dd>
-              </div>
-              <div>
-                <dt>Bye Week</dt>
-                <dd>{player.byeWeek ?? '--'}</dd>
-              </div>
-            </dl>
-
-            <footer className="player-card__footer">
-              <button
-                type="button"
-                className="player-card__action"
-                onClick={() => {
-                  toggleWatchlistPlayer(player.id)
-                  alert(`${player.name} watchlist updated!`)
-                  // force re-render so button text updates
-                  setPlayers([...players])
-                }}
-              >
-                {isPlayerWatched(player.id) ? "Remove from Watchlist" : "Add to Watchlist"}
-              </button>
-
-
-              <Link
-                to={`/player/${player.id}`}
-                className="player-card__action player-card__action--secondary"
-              >
-                View Details
-              </Link>
-            </footer>
-          </article>
-        ))}
+              <footer className="player-card__footer">
+                <Link
+                  to={`/player/${player.id}`}
+                  className="player-card__action player-card__action--secondary"
+                >
+                  View Details
+                </Link>
+              </footer>
+            </article>
+          ))}
       </section>
     </div>
   )
 }
 
-/* Helper Functions */
+/* ---------------- NORMALIZATION HELPERS ---------------- */
 
-function normalizeSleeperPlayer(player, stats = {}) {
-  if (!player || !player.player_id) return null
+function normalizeSleeperPlayer(player, stat = {}) {
+  if (!player?.player_id) return null
 
-  const position = mapSleeperPosition(player.position, player.fantasy_positions)
-  if (!POSITION_FILTERS.includes(position)) return null
+  // Position handling
+  let pos = player.position || player.fantasy_positions?.[0]
+  if (!pos) return null
+  if (pos === 'DEF') pos = 'DST'
+  if (!ALLOWED_POSITIONS.includes(pos)) return null
 
-  const teamCode = player.team ?? 'FA'
-  const totalPointsRaw =
-    stats.pts_ppr ??
-    stats.stats?.pts_ppr ??
-    0
+  // Team handling
+  const team = player.team || ''
+  if (!TEAM_DETAILS[team]) return null
 
-  const gamesPlayed = stats.games_played ?? stats.gp ?? 0
-  const totalPoints = Number(totalPointsRaw)
-  const average = gamesPlayed ? totalPoints / gamesPlayed : totalPoints
+  // Cut obvious inactive / retired players
+  if (isInactive(player.injury_status || player.status, team)) return null
+
+  const name =
+    player.full_name ||
+    `${player.first_name || ''} ${player.last_name || ''}`.trim()
+
+  // PPR totals/averages for 2024
+  const total = Number(stat.pts_ppr ?? 0)
+  const gp = Number(stat.gp ?? stat.games_played ?? 0)
+  const avg = gp > 0 ? total / gp : total
 
   return {
     id: `player-${player.player_id}`,
-    name: player.full_name ?? `${player.first_name ?? ''} ${player.last_name ?? ''}`.trim(),
-    position,
-    team: teamCode,
-    teamName: TEAM_DETAILS[teamCode]?.name ?? 'Free Agent',
-    points: totalPoints,
-    avgPoints: average,
-    status: mapInjuryStatus(player.injury_status ?? player.status),
+    name,
+    position: pos,
+    team,
+    teamName: TEAM_DETAILS[team].name,
+    points: total,
+    avgPoints: avg,
+    status: mapStatus(player.injury_status || player.status),
     byeWeek: player.bye_week ?? null
   }
 }
 
-function normalizeFastRPlayer(p) {
-  if (!p.player_id) return null
-  if (!['QB', 'RB', 'WR', 'TE', 'K'].includes(p.position)) return null
-
-  return {
-    id: `fastr-${p.player_id}`,
-    name: p.player,
-    position: p.position,
-    team: p.recent_team ?? 'FA',
-    teamName: TEAM_DETAILS[p.recent_team]?.name ?? 'Free Agent',
-    points: p.fantasy_points_ppr ?? 0,
-    avgPoints: p.games ? (p.fantasy_points_ppr ?? 0) / (p.games ?? 1) : 0,
-    status: 'Active',
-    byeWeek: p.bye_week ?? null
-  }
-}
-
-function mapSleeperPosition(position, fantasyPositions = []) {
-  if (position === 'DEF') return 'DST'
-  if (!position && fantasyPositions.length > 0) return mapSleeperPosition(fantasyPositions[0])
-  if (['DL', 'LB', 'DB'].includes(position)) return 'DST'
-  return position ?? 'FLEX'
-}
-
-function mapInjuryStatus(rawStatus = '') {
-  const normalized = rawStatus.toLowerCase()
-  if (normalized === 'active' || normalized === 'healthy') return 'Active'
-  if (normalized === 'probable') return 'Probable'
-  if (normalized === 'questionable') return 'Questionable'
-  if (normalized === 'doubtful') return 'Doubtful'
-  if (normalized === 'out') return 'Out'
-  if (normalized === 'suspended') return 'Suspended'
-  if (normalized === 'injured reserve' || normalized === 'ir') return 'IR'
-  if (normalized === 'na') return 'NA'
+function mapStatus(status = '') {
+  const s = status.toLowerCase()
+  if (s.includes('question')) return 'Questionable'
+  if (s.includes('doubt')) return 'Doubtful'
+  if (s.includes('out')) return 'Out'
+  if (s.includes('ir')) return 'IR'
+  if (s.includes('sus')) return 'Suspended'
   return 'Active'
 }
