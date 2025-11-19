@@ -2,20 +2,22 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router'
 import './Players.css'
 
+// ⭐ ADD THESE IMPORTS
+import {
+  addToWatchlist,
+  removeFromWatchlist,
+  isWatchlisted
+} from '../utils/Watchlist'
+
 /**
  * Global cache so other pages (PlayerDetails, Teams, etc.)
  * can reuse this list if needed.
  */
 window.__GLOBAL_PLAYERS__ = []
 
-// We are using 2024 PPR season stats.
 const STATS_SEASON = 2024
-
-// Fantasy-relevant offensive positions only.
 const ALLOWED_POSITIONS = ['QB', 'RB', 'WR', 'TE', 'K', 'DST']
 
-// Reasonable attempt to hide obviously inactive / FA players.
-// (You said a few retired guys slipping through is okay.)
 function isInactive(status = '', team = '') {
   const s = status.toLowerCase()
   const t = team.toUpperCase()
@@ -117,14 +119,11 @@ export default function Players() {
     }
   }, [])
 
-  // Team dropdown values
   const teams = useMemo(
     () => Array.from(new Set(players.map((p) => p.team))).sort(),
     [players]
   )
 
-  // Merge base player info with any stats we have loaded so far,
-  // then apply filters + sorting.
   const filtered = useMemo(() => {
     const sorter = SORT_OPTIONS.find((s) => s.id === sortId)
 
@@ -134,7 +133,7 @@ export default function Players() {
         return {
           ...p,
           points: Number(stats.points ?? 0),
-          avgPoints: Number(stats.avgPoints ?? 0)
+          avgPoints: Number(stats.avgPoints ?? 0),
         }
       })
       .filter((p) => {
@@ -147,10 +146,9 @@ export default function Players() {
       .sort(sorter.compare)
   }, [players, statsById, search, position, team, sortId, activeOnly])
 
-  // Callback from child cards when they successfully load stats.
   const handleStatsLoaded = (playerId, stats) => {
     setStatsById((prev) => {
-      if (prev[playerId]) return prev // avoid pointless re-writes
+      if (prev[playerId]) return prev
       return { ...prev, [playerId]: stats }
     })
   }
@@ -159,7 +157,7 @@ export default function Players() {
     <div className="players-page">
       <header className="players-page__hero">
         <h1>BLT Fantasy Player Hub</h1>
-        <p>Showing 2024 PPR season stats (live per-player from Sleeper).</p>
+        <p>Showing 2024 PPR season stats (Sleeper).</p>
 
         {error && (
           <div className="players-page__status">
@@ -184,9 +182,7 @@ export default function Players() {
           <select value={position} onChange={(e) => setPosition(e.target.value)}>
             <option value="ALL">All</option>
             {ALLOWED_POSITIONS.map((pos) => (
-              <option key={pos} value={pos}>
-                {pos}
-              </option>
+              <option key={pos} value={pos}>{pos}</option>
             ))}
           </select>
         </div>
@@ -196,9 +192,7 @@ export default function Players() {
           <select value={team} onChange={(e) => setTeam(e.target.value)}>
             <option value="ALL">All</option>
             {teams.map((t) => (
-              <option key={t} value={t}>
-                {t}
-              </option>
+              <option key={t} value={t}>{t}</option>
             ))}
           </select>
         </div>
@@ -207,9 +201,7 @@ export default function Players() {
           <label>Sort</label>
           <select value={sortId} onChange={(e) => setSortId(e.target.value)}>
             {SORT_OPTIONS.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.label}
-              </option>
+              <option key={s.id} value={s.id}>{s.label}</option>
             ))}
           </select>
         </div>
@@ -244,68 +236,63 @@ export default function Players() {
   )
 }
 
-/* -------------------- CHILD CARD COMPONENT -------------------- */
+/* -------------------- CHILD CARD (with watchlist flag) -------------------- */
 
 function PlayerCard({ player, stats, onStatsLoaded }) {
-  const [loadingStats, setLoadingStats] = useState(false)
+  const [loadingStats, setLoadingStats] = useState(false);
+
+  const [watching, setWatching] = useState(isWatchlisted(player.id));
+
+  const toggleWatch = () => {
+    if (watching) removeFromWatchlist(player.id);
+    else addToWatchlist(player.id);
+    setWatching(!watching);
+  };
 
   useEffect(() => {
-    let cancelled = false
+    let cancelled = false;
 
     async function loadStats() {
-      // If we already have stats, do not re-fetch.
-      if (stats || loadingStats) return
+      if (stats || loadingStats) return;
 
       try {
-        setLoadingStats(true)
+        setLoadingStats(true);
         const resp = await fetch(
           `https://api.sleeper.app/stats/nfl/player/${player.rawId}?season_type=regular&season=${STATS_SEASON}`
-        )
-        if (!resp.ok) throw new Error('Failed to load player stats')
+        );
 
-        const json = await resp.json() || {}
-
-        // These field names are based on community usage of this endpoint.
-        const total = Number(json.pts_ppr ?? 0)
-        const gp = Number(json.gp ?? json.games_played ?? 0)
-        const avg = gp > 0 ? total / gp : total
+        const json = await resp.json() || {};
+        const total = Number(json.pts_ppr ?? 0);
+        const gp = Number(json.gp ?? json.games_played ?? 0);
+        const avg = gp > 0 ? total / gp : total;
 
         if (!cancelled) {
-          onStatsLoaded(player.id, {
-            points: total,
-            avgPoints: avg
-          })
+          onStatsLoaded(player.id, { points: total, avgPoints: avg });
         }
       } catch (err) {
-        console.error('Failed to fetch stats for', player.name, err)
+        console.error("Stats error for", player.name);
       } finally {
-        if (!cancelled) setLoadingStats(false)
+        if (!cancelled) setLoadingStats(false);
       }
     }
 
-    loadStats()
+    loadStats();
     return () => {
-      cancelled = true
-    }
-    // we intentionally *do not* include stats in deps,
-    // so this only runs once per card unless re-mounted
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [player.rawId, onStatsLoaded])
+      cancelled = true;
+    };
+  }, [player.rawId, onStatsLoaded]);
 
-  const displayPoints = stats ? stats.points : 0
-  const displayAvg = stats ? stats.avgPoints : 0
+  const displayPoints = stats ? stats.points : 0;
+  const displayAvg = stats ? stats.avgPoints : 0;
 
   return (
     <article className="player-card">
       <header className="player-card__header">
-        <span
-          className={`player-card__position player-card__position--${player.position.toLowerCase()}`}
-        >
+        <span className={`player-card__position player-card__position--${player.position.toLowerCase()}`}>
           {player.position}
         </span>
-        <span
-          className={`player-card__status player-card__status--${player.status.toLowerCase()}`}
-        >
+
+        <span className={`player-card__status player-card__status--${player.status.toLowerCase()}`}>
           {player.status}
         </span>
       </header>
@@ -316,19 +303,18 @@ function PlayerCard({ player, stats, onStatsLoaded }) {
       </p>
 
       <dl className="player-card__metrics">
-        <div>
-          <dt>Total</dt>
-          <dd>{displayPoints.toFixed(1)}</dd>
-        </div>
-        <div>
-          <dt>Avg</dt>
-          <dd>{displayAvg.toFixed(1)}</dd>
-        </div>
-        <div>
-          <dt>Bye</dt>
-          <dd>{player.byeWeek ?? '-'}</dd>
-        </div>
+        <div><dt>Total</dt><dd>{displayPoints.toFixed(1)}</dd></div>
+        <div><dt>Avg</dt><dd>{displayAvg.toFixed(1)}</dd></div>
+        <div><dt>Bye</dt><dd>{player.byeWeek ?? "-"}</dd></div>
       </dl>
+
+      {/* ⭐ NEW BUTTON — main UX improvement */}
+      <button
+        className="player-card__watch-btn"
+        onClick={toggleWatch}
+      >
+        {watching ? "Remove from Watchlist" : "Add to Watchlist"}
+      </button>
 
       <footer className="player-card__footer">
         <Link
@@ -339,10 +325,11 @@ function PlayerCard({ player, stats, onStatsLoaded }) {
         </Link>
       </footer>
     </article>
-  )
+  );
 }
 
-/* ---------------- NORMALIZATION HELPERS ---------------- */
+
+/* ---------------- HELPERS ---------------- */
 
 function normalizeSleeperPlayer(player) {
   if (!player?.player_id) return null
@@ -363,12 +350,11 @@ function normalizeSleeperPlayer(player) {
 
   return {
     id: `player-${player.player_id}`,
-    rawId: player.player_id, // for stats endpoint
+    rawId: player.player_id,
     name,
     position: pos,
     team,
     teamName: TEAM_DETAILS[team].name,
-    // these start as 0; real values come from stats endpoint
     points: 0,
     avgPoints: 0,
     status: mapStatus(player.injury_status || player.status),

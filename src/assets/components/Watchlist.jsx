@@ -1,68 +1,59 @@
-import { useEffect, useState } from "react"
-import { getWatchlist } from "../utils/Watchlist"
-import { Link } from "react-router"
-import "./Players.css"
+import { useEffect, useState } from "react";
+import { Link } from "react-router";
+import {
+  getWatchlist,
+  removeFromWatchlist
+} from "../utils/Watchlist";
 
 export default function Watchlist() {
-
-  const [players, setPlayers] = useState([])
+  const [players, setPlayers] = useState([]);
 
   useEffect(() => {
-    const ids = getWatchlist()
-    const all = window.__GLOBAL_PLAYERS__ || []
+    const wl = getWatchlist();
+    const full = (window.__GLOBAL_PLAYERS__ || []).filter(p =>
+      wl.includes(p.id)
+    );
+    setPlayers(full);
+  }, []);
 
-    const filtered = all.filter(p => ids.includes(p.id))
-    setPlayers(filtered)
-  }, [])
+  const handleRemove = (id) => {
+    removeFromWatchlist(id);
+
+    // Remove from UI immediately
+    setPlayers(prev => prev.filter(p => p.id !== id));
+  };
 
   return (
-    <div style={{ width: "100%", maxWidth: "900px" }}>
+    <div className="watchlist-page">
       <h1>Your Watchlist</h1>
-      <p>These are players you've marked to keep an eye on.</p>
 
-      {players.length === 0 && <h3>No players in your watchlist yet.</h3>}
+      {players.length === 0 && (
+        <p>You haven’t added anyone to your watchlist yet.</p>
+      )}
 
-      <div className="players-grid">
+      <div className="watchlist-grid">
         {players.map(player => (
-          <article key={player.id} className="player-card">
-            <header className="player-card__header">
-              <span className={`player-card__position player-card__position--${player.position.toLowerCase()}`}>
-                {player.position}
-              </span>
-              <span className={`player-card__status player-card__status--${player.status.toLowerCase().replace(/\s+/g, "-")}`}>
-                {player.status}
-              </span>
-            </header>
-
+          <div key={player.id} className="watchlist-item">
             <h3>{player.name}</h3>
-            <p className="player-card__team">{player.team} · {player.teamName}</p>
+            <p>{player.team} · {player.position}</p>
 
-            <dl className="player-card__metrics">
-              <div>
-                <dt>Total Points</dt>
-                <dd>{player.points.toFixed(1)}</dd>
-              </div>
-              <div>
-                <dt>Avg/Game</dt>
-                <dd>{player.avgPoints.toFixed(1)}</dd>
-              </div>
-              <div>
-                <dt>Bye Week</dt>
-                <dd>{player.byeWeek ?? "--"}</dd>
-              </div>
-            </dl>
+            <Link
+              to={`/player/${player.id}`}
+              className="watchlist-view"
+            >
+              View Player
+            </Link>
 
-            <footer className="player-card__footer">
-              <Link
-                className="player-card__action player-card__action--secondary"
-                to={`/player/${player.id}`}
-              >
-                View Details
-              </Link>
-            </footer>
-          </article>
+            {/* ⭐ NEW REMOVE BUTTON */}
+            <button
+              className="watchlist-remove-btn"
+              onClick={() => handleRemove(player.id)}
+            >
+              Remove from Watchlist
+            </button>
+          </div>
         ))}
       </div>
     </div>
-  )
+  );
 }

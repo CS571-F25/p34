@@ -383,4 +383,38 @@
   .player-card__footer {
     flex-direction: column;
   }
+  .player-card__watch-btn {
+  margin-top: 10px;
+  padding: 6px 10px;
+  background: #1e88e5;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  width: 100%;
+  font-size: 0.9rem;
+  transition: background 0.2s;
+}
+
+.player-card__watch-btn:hover {
+  background: #1669b7;
+}
+
+.watchlist-remove-btn {
+  margin-top: 10px;
+  padding: 6px 10px;
+  background: #c62828;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  width: 100%;
+  font-size: 0.9rem;
+  transition: background 0.2s;
+}
+
+.watchlist-remove-btn:hover {
+  background: #8e1c1c;
+}
+
 }
