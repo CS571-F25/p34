@@ -3,24 +3,26 @@ import { Link } from 'react-router'
 import './Players.css'
 
 /**
- * Global cache so other pages (PlayerDetails, Teams, Watchlist, etc.)
- * can access the same player list.
+ * Global cache so other pages (PlayerDetails, Teams, etc.)
+ * can reuse this list if needed.
  */
 window.__GLOBAL_PLAYERS__ = []
 
-/** We are explicitly using 2024 PPR stats for now. */
+// We are using 2024 PPR season stats.
 const STATS_SEASON = 2024
 
-/** Only fantasy-relevant offensive positions. */
+// Fantasy-relevant offensive positions only.
 const ALLOWED_POSITIONS = ['QB', 'RB', 'WR', 'TE', 'K', 'DST']
 
-/** Filter out clearly inactive / FA / retired players. */
+// Reasonable attempt to hide obviously inactive / FA players.
+// (You said a few retired guys slipping through is okay.)
 function isInactive(status = '', team = '') {
   const s = status.toLowerCase()
   const t = team.toUpperCase()
 
-  if (s.includes('ret')) return true           // retired
+  if (s.includes('ret')) return true
   if (s.includes('former')) return true
+  if (s.includes('practice')) return true
   if (!t || t === 'FA' || t === 'NONE') return true
 
   return false
@@ -69,91 +71,72 @@ const SORT_OPTIONS = [
 
 export default function Players() {
   const [players, setPlayers] = useState([])
+  const [statsById, setStatsById] = useState({})
   const [search, setSearch] = useState('')
   const [position, setPosition] = useState('ALL')
   const [team, setTeam] = useState('ALL')
   const [sortId, setSortId] = useState('points')
   const [activeOnly, setActiveOnly] = useState(false)
   const [loading, setLoading] = useState(true)
-  const [isLive, setIsLive] = useState(false)
   const [error, setError] = useState('')
 
   useEffect(() => {
     let cancelled = false
 
-    async function load() {
+    async function loadPlayers() {
       try {
         setLoading(true)
+        const resp = await fetch('https://api.sleeper.app/v1/players/nfl')
+        if (!resp.ok) throw new Error('Failed to load players')
 
-        // Sleeper players + stats, 2024 PPR
-        const playersResp = await fetch('https://api.sleeper.com/players/nfl')
-        const statsResp = await fetch(
-          `https://api.sleeper.com/stats/nfl/regular/${STATS_SEASON}?season_type=regular`
-        )
+        const raw = await resp.json()
 
-        if (!playersResp.ok) throw new Error('Sleeper players API failed')
-        if (!statsResp.ok) throw new Error('Sleeper stats API failed')
-
-        const rawPlayers = await playersResp.json()
-        const statsRaw = (await statsResp.json()) || {}
-
-        // Stats may come back as an object or an array; normalize to a map keyed by player_id (string)
-        let statsById = {}
-
-        if (Array.isArray(statsRaw)) {
-          for (const entry of statsRaw) {
-            if (!entry || entry.player_id == null) continue
-            statsById[String(entry.player_id)] = entry
-          }
-        } else {
-          // assume already keyed by player_id
-          for (const key of Object.keys(statsRaw)) {
-            statsById[String(key)] = statsRaw[key]
-          }
-        }
-
-        const sleeperPlayers = Object.values(rawPlayers)
-          .map((p) => {
-            const stat = statsById[String(p.player_id)] || {}
-            return normalizeSleeperPlayer(p, stat)
-          })
+        const mapped = Object.values(raw)
+          .map((p) => normalizeSleeperPlayer(p))
           .filter(Boolean)
 
         if (!cancelled) {
-          window.__GLOBAL_PLAYERS__ = sleeperPlayers
-          setPlayers(sleeperPlayers)
-          setIsLive(true) // live-ish, but using 2024 archive
+          window.__GLOBAL_PLAYERS__ = mapped
+          setPlayers(mapped)
           setError('')
         }
       } catch (err) {
         console.error(err)
         if (!cancelled) {
           setPlayers([])
-          setIsLive(false)
-          setError('Could not load live stats right now.')
+          setError('Could not load player data right now.')
         }
       } finally {
         if (!cancelled) setLoading(false)
       }
     }
 
-    load()
+    loadPlayers()
     return () => {
       cancelled = true
     }
   }, [])
 
-  // Team dropdown options
+  // Team dropdown values
   const teams = useMemo(
     () => Array.from(new Set(players.map((p) => p.team))).sort(),
     [players]
   )
 
-  // Filter + sort (ensure numbers before sorting by points/avg)
+  // Merge base player info with any stats we have loaded so far,
+  // then apply filters + sorting.
   const filtered = useMemo(() => {
     const sorter = SORT_OPTIONS.find((s) => s.id === sortId)
 
     return players
+      .map((p) => {
+        const stats = statsById[p.id] || {}
+        return {
+          ...p,
+          points: Number(stats.points ?? 0),
+          avgPoints: Number(stats.avgPoints ?? 0)
+        }
+      })
       .filter((p) => {
         const matchName = p.name.toLowerCase().includes(search.toLowerCase())
         const matchPos = position === 'ALL' || p.position === position
@@ -161,30 +144,28 @@ export default function Players() {
         const matchActive = !activeOnly || p.status === 'Active'
         return matchName && matchPos && matchTeam && matchActive
       })
-      .map((p) => ({
-        ...p,
-        points: Number(p.points),
-        avgPoints: Number(p.avgPoints)
-      }))
       .sort(sorter.compare)
-  }, [players, search, position, team, sortId, activeOnly])
+  }, [players, statsById, search, position, team, sortId, activeOnly])
+
+  // Callback from child cards when they successfully load stats.
+  const handleStatsLoaded = (playerId, stats) => {
+    setStatsById((prev) => {
+      if (prev[playerId]) return prev // avoid pointless re-writes
+      return { ...prev, [playerId]: stats }
+    })
+  }
 
   return (
     <div className="players-page">
       <header className="players-page__hero">
         <h1>BLT Fantasy Player Hub</h1>
-        <p>Explore 2024 PPR performance for every fantasy-relevant player.</p>
+        <p>Showing 2024 PPR season stats (live per-player from Sleeper).</p>
 
-        <div className="players-page__status">
-          <span
-            className={`status-pill ${
-              isLive ? 'status-pill--success' : 'status-pill--warning'
-            }`}
-          >
-            2024 PPR Season Data
-          </span>
-          {error && <span className="status-pill__message">{error}</span>}
-        </div>
+        {error && (
+          <div className="players-page__status">
+            <span className="status-pill status-pill--warning">{error}</span>
+          </div>
+        )}
       </header>
 
       {/* Filters */}
@@ -200,10 +181,7 @@ export default function Players() {
 
         <div className="filter-control">
           <label>Position</label>
-          <select
-            value={position}
-            onChange={(e) => setPosition(e.target.value)}
-          >
+          <select value={position} onChange={(e) => setPosition(e.target.value)}>
             <option value="ALL">All</option>
             {ALLOWED_POSITIONS.map((pos) => (
               <option key={pos} value={pos}>
@@ -254,90 +232,145 @@ export default function Players() {
 
         {!loading &&
           filtered.map((player) => (
-            <article key={player.id} className="player-card">
-              <header className="player-card__header">
-                <span
-                  className={`player-card__position player-card__position--${player.position.toLowerCase()}`}
-                >
-                  {player.position}
-                </span>
-                <span
-                  className={`player-card__status player-card__status--${player.status.toLowerCase()}`}
-                >
-                  {player.status}
-                </span>
-              </header>
-
-              <h3>{player.name}</h3>
-              <p className="player-card__team">
-                {player.team} · {player.teamName}
-              </p>
-
-              <dl className="player-card__metrics">
-                <div>
-                  <dt>Total</dt>
-                  <dd>{player.points.toFixed(1)}</dd>
-                </div>
-                <div>
-                  <dt>Avg</dt>
-                  <dd>{player.avgPoints.toFixed(1)}</dd>
-                </div>
-                <div>
-                  <dt>Bye</dt>
-                  <dd>{player.byeWeek ?? '-'}</dd>
-                </div>
-              </dl>
-
-              <footer className="player-card__footer">
-                <Link
-                  to={`/player/${player.id}`}
-                  className="player-card__action player-card__action--secondary"
-                >
-                  View Details
-                </Link>
-              </footer>
-            </article>
+            <PlayerCard
+              key={player.id}
+              player={player}
+              stats={statsById[player.id]}
+              onStatsLoaded={handleStatsLoaded}
+            />
           ))}
       </section>
     </div>
   )
 }
 
+/* -------------------- CHILD CARD COMPONENT -------------------- */
+
+function PlayerCard({ player, stats, onStatsLoaded }) {
+  const [loadingStats, setLoadingStats] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadStats() {
+      // If we already have stats, do not re-fetch.
+      if (stats || loadingStats) return
+
+      try {
+        setLoadingStats(true)
+        const resp = await fetch(
+          `https://api.sleeper.app/stats/nfl/player/${player.rawId}?season_type=regular&season=${STATS_SEASON}`
+        )
+        if (!resp.ok) throw new Error('Failed to load player stats')
+
+        const json = await resp.json() || {}
+
+        // These field names are based on community usage of this endpoint.
+        const total = Number(json.pts_ppr ?? 0)
+        const gp = Number(json.gp ?? json.games_played ?? 0)
+        const avg = gp > 0 ? total / gp : total
+
+        if (!cancelled) {
+          onStatsLoaded(player.id, {
+            points: total,
+            avgPoints: avg
+          })
+        }
+      } catch (err) {
+        console.error('Failed to fetch stats for', player.name, err)
+      } finally {
+        if (!cancelled) setLoadingStats(false)
+      }
+    }
+
+    loadStats()
+    return () => {
+      cancelled = true
+    }
+    // we intentionally *do not* include stats in deps,
+    // so this only runs once per card unless re-mounted
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [player.rawId, onStatsLoaded])
+
+  const displayPoints = stats ? stats.points : 0
+  const displayAvg = stats ? stats.avgPoints : 0
+
+  return (
+    <article className="player-card">
+      <header className="player-card__header">
+        <span
+          className={`player-card__position player-card__position--${player.position.toLowerCase()}`}
+        >
+          {player.position}
+        </span>
+        <span
+          className={`player-card__status player-card__status--${player.status.toLowerCase()}`}
+        >
+          {player.status}
+        </span>
+      </header>
+
+      <h3>{player.name}</h3>
+      <p className="player-card__team">
+        {player.team} · {player.teamName}
+      </p>
+
+      <dl className="player-card__metrics">
+        <div>
+          <dt>Total</dt>
+          <dd>{displayPoints.toFixed(1)}</dd>
+        </div>
+        <div>
+          <dt>Avg</dt>
+          <dd>{displayAvg.toFixed(1)}</dd>
+        </div>
+        <div>
+          <dt>Bye</dt>
+          <dd>{player.byeWeek ?? '-'}</dd>
+        </div>
+      </dl>
+
+      <footer className="player-card__footer">
+        <Link
+          to={`/player/${player.id}`}
+          className="player-card__action player-card__action--secondary"
+        >
+          View Details
+        </Link>
+      </footer>
+    </article>
+  )
+}
+
 /* ---------------- NORMALIZATION HELPERS ---------------- */
 
-function normalizeSleeperPlayer(player, stat = {}) {
+function normalizeSleeperPlayer(player) {
   if (!player?.player_id) return null
 
-  // Position handling
   let pos = player.position || player.fantasy_positions?.[0]
   if (!pos) return null
   if (pos === 'DEF') pos = 'DST'
   if (!ALLOWED_POSITIONS.includes(pos)) return null
 
-  // Team handling
   const team = player.team || ''
   if (!TEAM_DETAILS[team]) return null
 
-  // Cut obvious inactive / retired players
   if (isInactive(player.injury_status || player.status, team)) return null
 
   const name =
     player.full_name ||
     `${player.first_name || ''} ${player.last_name || ''}`.trim()
 
-  // PPR totals/averages for 2024
-  const total = Number(stat.pts_ppr ?? 0)
-  const gp = Number(stat.gp ?? stat.games_played ?? 0)
-  const avg = gp > 0 ? total / gp : total
-
   return {
     id: `player-${player.player_id}`,
+    rawId: player.player_id, // for stats endpoint
     name,
     position: pos,
     team,
     teamName: TEAM_DETAILS[team].name,
-    points: total,
-    avgPoints: avg,
+    // these start as 0; real values come from stats endpoint
+    points: 0,
+    avgPoints: 0,
     status: mapStatus(player.injury_status || player.status),
     byeWeek: player.bye_week ?? null
   }

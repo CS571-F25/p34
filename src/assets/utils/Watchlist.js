@@ -1,4 +1,6 @@
-const STORAGE_KEY = "blt_watchlist"
+// Simple localStorage-based watchlist
+
+const STORAGE_KEY = "watchlist_players"
 
 export function getWatchlist() {
   try {
@@ -8,20 +10,18 @@ export function getWatchlist() {
   }
 }
 
-export function toggleWatchlistPlayer(playerId) {
-  const current = getWatchlist()
-  let updated
-
-  if (current.includes(playerId)) {
-    updated = current.filter(id => id !== playerId)
-  } else {
-    updated = [...current, playerId]
+export function addToWatchlist(id) {
+  const list = getWatchlist()
+  if (!list.includes(id)) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify([...list, id]))
   }
-
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(updated))
-  return updated
 }
 
-export function isPlayerWatched(playerId) {
-  return getWatchlist().includes(playerId)
+export function removeFromWatchlist(id) {
+  const list = getWatchlist().filter(x => x !== id)
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(list))
+}
+
+export function isWatchlisted(id) {
+  return getWatchlist().includes(id)
 }
