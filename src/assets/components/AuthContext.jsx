@@ -35,10 +35,12 @@ function validatePassword(password) {
 export function AuthProvider({ children }) {
   const [users, setUsers] = useState([])
   const [user, setUser] = useState(null)
+  const [hydrated, setHydrated] = useState(false)
 
   useEffect(() => {
     const existingUsers = readUsers()
     setUsers(existingUsers)
+    setHydrated(true)
 
     const session = localStorage.getItem(SESSION_KEY)
     if (session) {
@@ -50,8 +52,9 @@ export function AuthProvider({ children }) {
   }, [])
 
   useEffect(() => {
+    if (!hydrated) return
     persistUsers(users)
-  }, [users])
+  }, [users, hydrated])
 
   const register = (usernameInput, password) => {
     const username = usernameInput.trim()
