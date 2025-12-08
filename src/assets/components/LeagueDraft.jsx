@@ -1,33 +1,7 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import './Leagues.css'
 import { shuffle } from '../utils/leagueStore.js'
-
-const SLEEPER_PLAYERS_URL = 'https://api.sleeper.app/v1/players/nfl'
-
-const FALLBACK_PLAYERS = [
-  { id: 'bijan_robinson', name: 'Bijan Robinson', position: 'RB', team: 'ATL' },
-  { id: 'justin_jefferson', name: 'Justin Jefferson', position: 'WR', team: 'MIN' },
-  { id: 'patrick_mahomes', name: 'Patrick Mahomes', position: 'QB', team: 'KC' },
-  { id: 'amon_ra_st_brown', name: 'Amon-Ra St. Brown', position: 'WR', team: 'DET' },
-  { id: 'christian_mccaffrey', name: 'Christian McCaffrey', position: 'RB', team: 'SF' },
-  { id: 'garrett_wilson', name: 'Garrett Wilson', position: 'WR', team: 'NYJ' },
-  { id: 'josh_allen', name: 'Josh Allen', position: 'QB', team: 'BUF' },
-  { id: 'travis_kelce', name: 'Travis Kelce', position: 'TE', team: 'KC' }
-]
-
-function toPlayerList(data) {
-  if (!data || typeof data !== 'object') return FALLBACK_PLAYERS
-  return Object.values(data)
-    .filter((p) => p.active && ['QB', 'RB', 'WR', 'TE'].includes(p.position) && p.team !== 'FA')
-    .map((p) => ({
-      id: p.player_id,
-      name: p.full_name || p.first_name + ' ' + p.last_name,
-      position: p.position,
-      team: p.team,
-      bye: p.bye_week
-    }))
-    .slice(0, 400)
-}
+import { loadSleeperPlayers } from '../utils/playerSource.js'
 
 function teamLabel(team) {
   if (!team) return 'Team'
@@ -44,7 +18,7 @@ function buildSnakeOrder(order, rounds) {
 }
 
 export default function LeagueDraft({ league, onUpdate, isMember, user }) {
-  const [players, setPlayers] = useState(FALLBACK_PLAYERS)
+  const [players, setPlayers] = useState([])
   const [query, setQuery] = useState('')
   const [positionFilter, setPositionFilter] = useState('ALL')
   const [loadingPlayers, setLoadingPlayers] = useState(false)
@@ -78,13 +52,15 @@ export default function LeagueDraft({ league, onUpdate, isMember, user }) {
   useEffect(() => {
     let ignore = false
     setLoadingPlayers(true)
-    fetch(SLEEPER_PLAYERS_URL)
-      .then((res) => res.json())
-      .then((data) => {
+    loadSleeperPlayers()
+      .then((list) => {
         if (ignore) return
-        setPlayers(toPlayerList(data))
+        setPlayers(list)
       })
-      .catch(() => setPlayers(FALLBACK_PLAYERS))
+      .catch(() => {
+        if (ignore) return
+        setPlayers([])
+      })
       .finally(() => setLoadingPlayers(false))
 
     return () => {
