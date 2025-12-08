@@ -17,6 +17,7 @@ window.__GLOBAL_PLAYERS__ = []
 
 const STATS_SEASON = 2024
 const ALLOWED_POSITIONS = ['QB', 'RB', 'WR', 'TE', 'K', 'DST']
+const MAX_STATS_FETCH = 120
 
 function isInactive(status = '', team = '') {
   const s = status.toLowerCase()
@@ -81,6 +82,7 @@ export default function Players() {
   const [activeOnly, setActiveOnly] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [statsLoading, setStatsLoading] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -119,6 +121,43 @@ export default function Players() {
     }
   }, [])
 
+  useEffect(() => {
+    let cancelled = false
+    const missing = players.filter((p) => !statsById[p.id]).slice(0, MAX_STATS_FETCH)
+    if (!missing.length) return
+
+    async function loadStats() {
+      setStatsLoading(true)
+      const updates = {}
+
+      await Promise.all(
+        missing.map(async (player) => {
+          try {
+            const resp = await fetch(
+              `https://api.sleeper.app/stats/nfl/player/${player.rawId}?season_type=regular&season=${STATS_SEASON}`
+            )
+            const json = (await resp.json()) || {}
+            const total = Number(json.pts_ppr ?? 0)
+            const gp = Number(json.gp ?? json.games_played ?? 0)
+            updates[player.id] = { points: total, avgPoints: gp > 0 ? total / gp : total }
+          } catch (err) {
+            console.error('Stats error for', player.name, err)
+          }
+        })
+      )
+
+      if (!cancelled && Object.keys(updates).length) {
+        setStatsById((prev) => ({ ...prev, ...updates }))
+      }
+      if (!cancelled) setStatsLoading(false)
+    }
+
+    loadStats()
+    return () => {
+      cancelled = true
+    }
+  }, [players, statsById])
+
   const teams = useMemo(
     () => Array.from(new Set(players.map((p) => p.team))).sort(),
     [players]
@@ -145,13 +184,6 @@ export default function Players() {
       })
       .sort(sorter.compare)
   }, [players, statsById, search, position, team, sortId, activeOnly])
-
-  const handleStatsLoaded = (playerId, stats) => {
-    setStatsById((prev) => {
-      if (prev[playerId]) return prev
-      return { ...prev, [playerId]: stats }
-    })
-  }
 
   return (
     <div className="players-page">
@@ -221,6 +253,7 @@ export default function Players() {
       {/* Grid */}
       <section className="players-grid">
         {loading && <h2>Loading players…</h2>}
+        {statsLoading && !loading && <h3 className="players-grid__loading">Fetching PPR stats…</h3>}
 
         {!loading &&
           filtered.map((player) => (
@@ -228,7 +261,6 @@ export default function Players() {
               key={player.id}
               player={player}
               stats={statsById[player.id]}
-              onStatsLoaded={handleStatsLoaded}
             />
           ))}
       </section>
@@ -238,9 +270,7 @@ export default function Players() {
 
 /* -------------------- CHILD CARD (with watchlist flag) -------------------- */
 
-function PlayerCard({ player, stats, onStatsLoaded }) {
-  const [loadingStats, setLoadingStats] = useState(false);
-
+function PlayerCard({ player, stats }) {
   const [watching, setWatching] = useState(isWatchlisted(player.id));
 
   const toggleWatch = () => {
@@ -248,39 +278,6 @@ function PlayerCard({ player, stats, onStatsLoaded }) {
     else addToWatchlist(player.id);
     setWatching(!watching);
   };
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadStats() {
-      if (stats || loadingStats) return;
-
-      try {
-        setLoadingStats(true);
-        const resp = await fetch(
-          `https://api.sleeper.app/stats/nfl/player/${player.rawId}?season_type=regular&season=${STATS_SEASON}`
-        );
-
-        const json = await resp.json() || {};
-        const total = Number(json.pts_ppr ?? 0);
-        const gp = Number(json.gp ?? json.games_played ?? 0);
-        const avg = gp > 0 ? total / gp : total;
-
-        if (!cancelled) {
-          onStatsLoaded(player.id, { points: total, avgPoints: avg });
-        }
-      } catch (err) {
-        console.error("Stats error for", player.name);
-      } finally {
-        if (!cancelled) setLoadingStats(false);
-      }
-    }
-
-    loadStats();
-    return () => {
-      cancelled = true;
-    };
-  }, [player.rawId, onStatsLoaded]);
 
   const displayPoints = stats ? stats.points : 0;
   const displayAvg = stats ? stats.avgPoints : 0;
@@ -327,7 +324,6 @@ function PlayerCard({ player, stats, onStatsLoaded }) {
     </article>
   );
 }
-
 
 /* ---------------- HELPERS ---------------- */
 
