@@ -60,7 +60,11 @@ export default function Login() {
       </section>
 
       {status.message && (
-        <div className={`auth-status auth-status--${status.type || 'info'}`}>
+        <div
+          className={`auth-status auth-status--${status.type || 'info'}`}
+          role="status"
+          aria-live="polite"
+        >
           <strong>{status.type ? status.type.toUpperCase() : 'INFO'}</strong>
           <span>{status.message}</span>
         </div>
@@ -91,9 +95,10 @@ export default function Login() {
         </div>
 
         <form className="auth-form" onSubmit={handleSubmit}>
-          <label>
+          <label htmlFor="auth-username">
             <span>Username</span>
             <input
+              id="auth-username"
               type="text"
               value={form.username}
               autoComplete="username"
@@ -103,9 +108,10 @@ export default function Login() {
             />
           </label>
 
-          <label>
+          <label htmlFor="auth-password">
             <span>Password</span>
             <input
+              id="auth-password"
               type="password"
               value={form.password}
               autoComplete={mode === 'login' ? 'current-password' : 'new-password'}

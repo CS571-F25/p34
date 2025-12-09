@@ -2,7 +2,6 @@ import { HashRouter, Routes, Route } from 'react-router'
 import './App.css'
 
 import Home from './assets/components/Home.jsx'
-import AboutMe from './assets/components/AboutMe.jsx'
 import Players from './assets/components/Players.jsx'
 import Layout from './assets/components/Layout.jsx'
 
@@ -24,7 +23,6 @@ function App() {
           <Route path="/player/:id" element={<PlayerDetails />} />
           <Route path="/league" element={<LeagueStats />} />
           <Route path="/league/:id" element={<LeaguePage />} />
-          <Route path="/about" element={<AboutMe />} />
           <Route path="/watchlist" element={<Watchlist />} />
           <Route path="/nfl_data_py_testing" element={<NFLDataPyTesting />} />
           <Route path="/login" element={<Login />} />

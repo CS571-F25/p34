@@ -184,7 +184,11 @@ export default function LeagueStats() {
       )}
 
       {status.message && (
-        <div className={`leagues-status leagues-status--${status.type || 'info'}`}>
+        <div
+          className={`leagues-status leagues-status--${status.type || 'info'}`}
+          role="status"
+          aria-live="polite"
+        >
           <strong>{status.type ? status.type.toUpperCase() : 'INFO'}</strong>
           <span>{status.message}</span>
         </div>
@@ -193,7 +197,7 @@ export default function LeagueStats() {
       <section className="leagues-forms">
         <div className="leagues-card">
           <p className="card-label">Account</p>
-          <h3>{isAuthed ? 'Connected' : 'Login required'}</h3>
+          <h2>{isAuthed ? 'Connected' : 'Login required'}</h2>
           <p className="card-help">
             {isAuthed
               ? 'Leagues you create stay tied to this username.'
@@ -212,11 +216,12 @@ export default function LeagueStats() {
 
         <form className="leagues-card" onSubmit={handleCreate}>
           <p className="card-label">Create</p>
-          <h3>Start a new league</h3>
+          <h2>Start a new league</h2>
           {!isAuthed && <p className="card-help">Login to enable league creation.</p>}
           <div className="form-group">
-            <label>League name</label>
+            <label htmlFor="league-name">League name</label>
             <input
+              id="league-name"
               type="text"
               value={createForm.name}
               disabled={!isAuthed}
@@ -226,8 +231,9 @@ export default function LeagueStats() {
           </div>
           <div className="form-columns">
             <div className="form-group">
-              <label>Scoring</label>
+              <label htmlFor="league-scoring">Scoring</label>
               <select
+                id="league-scoring"
                 value={createForm.format}
                 disabled={!isAuthed}
                 onChange={(e) => setCreateForm({ ...createForm, format: e.target.value })}
@@ -238,8 +244,9 @@ export default function LeagueStats() {
               </select>
             </div>
             <div className="form-group">
-              <label>Max teams</label>
+              <label htmlFor="league-size">Max teams</label>
               <input
+                id="league-size"
                 type="number"
                 min="4"
                 max="16"
@@ -254,11 +261,12 @@ export default function LeagueStats() {
 
         <form className="leagues-card" onSubmit={handleJoin}>
           <p className="card-label">Join</p>
-          <h3>Use an invite code</h3>
+          <h2>Use an invite code</h2>
           <p className="card-help">Drop the six-character code your commissioner shared.</p>
           <div className="form-group">
-            <label>Invite code</label>
+            <label htmlFor="league-invite-code">Invite code</label>
             <input
+              id="league-invite-code"
               type="text"
               value={joinCode}
               disabled={!isAuthed}

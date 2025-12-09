@@ -1,6 +1,5 @@
 // src/components/Layout.jsx
 import { NavLink, Outlet } from 'react-router'
-import NavbarDropdown from './NavbarDropdown.jsx'
 import './Layout.css'
 import { useAuth } from './AuthContext.jsx'
 
@@ -9,13 +8,14 @@ export default function Layout() {
 
   const navLinks = [
     { to: '/', label: 'Home' },
-    { to: '/players', label: 'Players' },
     { to: '/league', label: 'Leagues' },
-    { to: '/about', label: 'About' }
+    { to: '/players', label: 'Players' },
+    { to: '/watchlist', label: 'Watchlist' }
   ]
 
   return (
     <div className="app-shell">
+      <a className="skip-link" href="#main-content">Skip to main content</a>
       <header className="app-header">
         <div className="app-header__brand">
           <span className="app-header__badge">BLT</span>
@@ -25,7 +25,7 @@ export default function Layout() {
           </div>
         </div>
 
-        <nav className="app-nav">
+        <nav className="app-nav" aria-label="Primary">
           {navLinks.map((link) => (
             <NavLink
               key={link.to}
@@ -69,12 +69,10 @@ export default function Layout() {
               </button>
             </div>
           )}
-
-          <NavbarDropdown />
         </nav>
       </header>
 
-      <main className="app-main">
+      <main className="app-main" id="main-content">
         <Outlet />
       </main>
     </div>

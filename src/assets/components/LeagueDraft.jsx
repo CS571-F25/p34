@@ -127,7 +127,7 @@ export default function LeagueDraft({ league, onUpdate, isMember, user }) {
         <div className="leagues-section__header">
           <div>
             <p className="card-label">Draft control</p>
-            <h3>Setup</h3>
+            <h2>Setup</h2>
           </div>
         </div>
 
@@ -194,16 +194,23 @@ export default function LeagueDraft({ league, onUpdate, isMember, user }) {
         <div className="leagues-section__header">
           <div>
             <p className="card-label">Players</p>
-            <h3>Select next pick</h3>
+            <h2>Select next pick</h2>
           </div>
           <div className="draft-filters">
+            <label className="sr-only" htmlFor="draft-player-search">Search players</label>
             <input
+              id="draft-player-search"
               type="text"
               placeholder="Search players"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
             />
-            <select value={positionFilter} onChange={(e) => setPositionFilter(e.target.value)}>
+            <label className="sr-only" htmlFor="draft-position-filter">Filter by position</label>
+            <select
+              id="draft-position-filter"
+              value={positionFilter}
+              onChange={(e) => setPositionFilter(e.target.value)}
+            >
               <option value="ALL">All</option>
               <option value="QB">QB</option>
               <option value="RB">RB</option>
@@ -237,7 +244,7 @@ export default function LeagueDraft({ league, onUpdate, isMember, user }) {
         <div className="leagues-section__header">
           <div>
             <p className="card-label">Draft board</p>
-            <h3>Live picks</h3>
+            <h2>Live picks</h2>
           </div>
         </div>
         <div

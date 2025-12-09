@@ -66,9 +66,10 @@ const TEAM_DETAILS = {
 }
 
 const SORT_OPTIONS = [
+  { id: 'name', label: 'Name A → Z', compare: (a, b) => a.name.localeCompare(b.name) },
+  { id: 'name_desc', label: 'Name Z → A', compare: (a, b) => b.name.localeCompare(a.name) },
   { id: 'points', label: 'Total Points (High → Low)', compare: (a, b) => b.points - a.points },
   { id: 'avg', label: 'Average Points (High → Low)', compare: (a, b) => b.avgPoints - a.avgPoints },
-  { id: 'name', label: 'Name A → Z', compare: (a, b) => a.name.localeCompare(b.name) },
   { id: 'team', label: 'Team A → Z', compare: (a, b) => a.team.localeCompare(b.team) }
 ]
 
@@ -78,11 +79,10 @@ export default function Players() {
   const [search, setSearch] = useState('')
   const [position, setPosition] = useState('ALL')
   const [team, setTeam] = useState('ALL')
-  const [sortId, setSortId] = useState('points')
+  const [sortId, setSortId] = useState('name')
   const [activeOnly, setActiveOnly] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [statsLoading, setStatsLoading] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -127,7 +127,6 @@ export default function Players() {
     if (!missing.length) return
 
     async function loadStats() {
-      setStatsLoading(true)
       const updates = {}
 
       await Promise.all(
@@ -149,7 +148,6 @@ export default function Players() {
       if (!cancelled && Object.keys(updates).length) {
         setStatsById((prev) => ({ ...prev, ...updates }))
       }
-      if (!cancelled) setStatsLoading(false)
     }
 
     loadStats()
@@ -192,7 +190,7 @@ export default function Players() {
         <p>Showing 2024 PPR season stats (Sleeper).</p>
 
         {error && (
-          <div className="players-page__status">
+          <div className="players-page__status" role="status" aria-live="polite">
             <span className="status-pill status-pill--warning">{error}</span>
           </div>
         )}
@@ -201,8 +199,9 @@ export default function Players() {
       {/* Filters */}
       <section className="players-page__filters">
         <div className="filter-control">
-          <label>Search</label>
+          <label htmlFor="player-search">Search</label>
           <input
+            id="player-search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search players…"
@@ -210,8 +209,8 @@ export default function Players() {
         </div>
 
         <div className="filter-control">
-          <label>Position</label>
-          <select value={position} onChange={(e) => setPosition(e.target.value)}>
+          <label htmlFor="player-position">Position</label>
+          <select id="player-position" value={position} onChange={(e) => setPosition(e.target.value)}>
             <option value="ALL">All</option>
             {ALLOWED_POSITIONS.map((pos) => (
               <option key={pos} value={pos}>{pos}</option>
@@ -220,8 +219,8 @@ export default function Players() {
         </div>
 
         <div className="filter-control">
-          <label>Team</label>
-          <select value={team} onChange={(e) => setTeam(e.target.value)}>
+          <label htmlFor="player-team">Team</label>
+          <select id="player-team" value={team} onChange={(e) => setTeam(e.target.value)}>
             <option value="ALL">All</option>
             {teams.map((t) => (
               <option key={t} value={t}>{t}</option>
@@ -230,8 +229,8 @@ export default function Players() {
         </div>
 
         <div className="filter-control">
-          <label>Sort</label>
-          <select value={sortId} onChange={(e) => setSortId(e.target.value)}>
+          <label htmlFor="player-sort">Sort</label>
+          <select id="player-sort" value={sortId} onChange={(e) => setSortId(e.target.value)}>
             {SORT_OPTIONS.map((s) => (
               <option key={s.id} value={s.id}>{s.label}</option>
             ))}
@@ -253,7 +252,6 @@ export default function Players() {
       {/* Grid */}
       <section className="players-grid">
         {loading && <h2>Loading players…</h2>}
-        {statsLoading && !loading && <h3 className="players-grid__loading">Fetching PPR stats…</h3>}
 
         {!loading &&
           filtered.map((player) => (
@@ -271,16 +269,23 @@ export default function Players() {
 /* -------------------- CHILD CARD (with watchlist flag) -------------------- */
 
 function PlayerCard({ player, stats }) {
-  const [watching, setWatching] = useState(isWatchlisted(player.id));
+  const [watching, setWatching] = useState(isWatchlisted(player.id))
+
+  const watchButtonClass = [
+    'player-card__watch-btn',
+    watching ? 'player-card__watch-btn--active' : null
+  ]
+    .filter(Boolean)
+    .join(' ')
 
   const toggleWatch = () => {
-    if (watching) removeFromWatchlist(player.id);
-    else addToWatchlist(player.id);
-    setWatching(!watching);
-  };
+    if (watching) removeFromWatchlist(player.id)
+    else addToWatchlist(player.id)
+    setWatching(!watching)
+  }
 
-  const displayPoints = stats ? stats.points : 0;
-  const displayAvg = stats ? stats.avgPoints : 0;
+  const displayPoints = stats ? stats.points : 0
+  const displayAvg = stats ? stats.avgPoints : 0
 
   return (
     <article className="player-card">
@@ -305,9 +310,10 @@ function PlayerCard({ player, stats }) {
         <div><dt>Bye</dt><dd>{player.byeWeek ?? "-"}</dd></div>
       </dl>
 
-      {/* ⭐ NEW BUTTON — main UX improvement */}
       <button
-        className="player-card__watch-btn"
+        type="button"
+        className={watchButtonClass}
+        aria-pressed={watching}
         onClick={toggleWatch}
       >
         {watching ? "Remove from Watchlist" : "Add to Watchlist"}
@@ -322,7 +328,7 @@ function PlayerCard({ player, stats }) {
         </Link>
       </footer>
     </article>
-  );
+  )
 }
 
 /* ---------------- HELPERS ---------------- */

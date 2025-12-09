@@ -203,7 +203,7 @@ export default function LeaguePage() {
       </div>
 
       {!user && (
-        <div className="leagues-status leagues-status--info">
+        <div className="leagues-status leagues-status--info" role="status" aria-live="polite">
           <strong>LOGIN</strong>
           <span>
             <Link to="/login">Log in or create an account</Link> to claim a team,
@@ -213,7 +213,11 @@ export default function LeaguePage() {
       )}
 
       {status.message && (
-        <div className={`leagues-status leagues-status--${status.type || 'info'}`}>
+        <div
+          className={`leagues-status leagues-status--${status.type || 'info'}`}
+          role="status"
+          aria-live="polite"
+        >
           <strong>{status.type ? status.type.toUpperCase() : 'INFO'}</strong>
           <span>{status.message}</span>
         </div>
@@ -222,7 +226,7 @@ export default function LeaguePage() {
       <header className="league-header">
         <div>
           <p className="card-label">League</p>
-          <h2>{league.name}</h2>
+          <h1>{league.name}</h1>
           <p className="card-help">
             {league.format || 'Redraft'} · {league.size}-team league · Commissioner:{' '}
             {memberLabel(league.commissioner || league.members?.[0]?.username)}
@@ -239,12 +243,14 @@ export default function LeaguePage() {
         </div>
       </header>
 
-      <div className="league-tabs">
+      <div className="league-tabs" role="tablist" aria-label="League views">
         {tabs.map((tab) => (
           <button
             key={tab.id}
             type="button"
             className={activeTab === tab.id ? 'active' : ''}
+            role="tab"
+            aria-selected={activeTab === tab.id}
             onClick={() => setActiveTab(tab.id)}
           >
             {tab.label}
@@ -271,7 +277,7 @@ export default function LeaguePage() {
                 <div className="leagues-section__header">
                   <div>
                     <p className="card-label">My Matchups</p>
-                    <h3>Your team's schedule</h3>
+                    <h2>Your team's schedule</h2>
                     {myTeam && (
                       <p className="card-help">
                         Your team: {teamLabel(myTeam)}
@@ -362,7 +368,7 @@ export default function LeaguePage() {
                   </button>
                   <div>
                     <span className="section-pill">Week {selectedMatchup.week}</span>
-                    <h3>Matchup Details</h3>
+                    <h2>Matchup Details</h2>
                   </div>
                 </div>
 
@@ -442,7 +448,7 @@ export default function LeaguePage() {
                 <div className="leagues-section__header">
                   <div>
                     <p className="card-label">Schedule</p>
-                    <h3>Weekly matchups</h3>
+                    <h2>Weekly matchups</h2>
                   </div>
                 </div>
 
@@ -507,7 +513,7 @@ export default function LeaguePage() {
                   </button>
                   <div>
                     <span className="section-pill">Week {selectedMatchup.week}</span>
-                    <h3>Matchup Details</h3>
+                    <h2>Matchup Details</h2>
                   </div>
                 </div>
 
@@ -585,7 +591,7 @@ export default function LeaguePage() {
             <div className="leagues-section__header">
               <div>
                 <p className="card-label">Draft history</p>
-                <h3>All picks</h3>
+                <h2>All picks</h2>
               </div>
             </div>
 
