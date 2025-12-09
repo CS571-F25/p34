@@ -1,4 +1,4 @@
-import { doc, getDoc, setDoc } from 'firebase/firestore'
+import { doc, getDoc, onSnapshot, setDoc } from 'firebase/firestore'
 import { db } from '../../firebase.js'
 
 const STORAGE_KEY = 'blt_leagues'
@@ -58,6 +58,27 @@ export async function persistLeagues(next) {
   } catch (err) {
     console.warn('Could not persist leagues to Firestore', err)
   }
+}
+
+export function subscribeLeagues(onChange) {
+  return onSnapshot(
+    LEAGUES_DOC,
+    async (snap) => {
+      if (snap.exists()) {
+        const data = snap.data()
+        if (Array.isArray(data.leagues)) {
+          onChange(data.leagues)
+          return
+        }
+      }
+      onChange(DEFAULT_LEAGUES)
+      await setDoc(LEAGUES_DOC, { leagues: DEFAULT_LEAGUES })
+    },
+    (err) => {
+      console.warn('Could not subscribe to leagues', err)
+      onChange(DEFAULT_LEAGUES)
+    }
+  )
 }
 
 export function memberLabel(member) {

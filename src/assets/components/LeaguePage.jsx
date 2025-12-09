@@ -9,7 +9,7 @@ import {
   memberLabel,
   memberMatches,
   persistLeagues,
-  readLeagues
+  subscribeLeagues
 } from '../utils/leagueStore.js'
 
 function teamLabel(team) {
@@ -27,16 +27,13 @@ export default function LeaguePage() {
   const [activeTab, setActiveTab] = useState('draft')
   const [selectedMatchupId, setSelectedMatchupId] = useState(null)
 
-  // Load leagues from storage
+  // Load leagues live from Firestore
   useEffect(() => {
-    let mounted = true
-    ;(async () => {
-      const stored = (await readLeagues()).map(hydrateLeague)
-      if (mounted) setLeagues(stored)
-    })()
-    return () => {
-      mounted = false
-    }
+    const unsubscribe = subscribeLeagues((data) => {
+      const hydrated = data.map(hydrateLeague)
+      setLeagues(hydrated)
+    })
+    return () => unsubscribe()
   }, [])
 
   const league = useMemo(
@@ -48,7 +45,7 @@ export default function LeaguePage() {
     setStatus({ type, message })
   }
 
-  // Save updates back to localStorage
+  // Save updates back to Firestore
   const updateLeague = (updater) => {
     setLeagues((prev) => {
       const next = prev.map((l) => {

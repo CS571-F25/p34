@@ -3,6 +3,13 @@ import './Leagues.css'
 import { shuffle } from '../utils/leagueStore.js'
 import { loadSleeperPlayers } from '../utils/playerSource.js'
 
+const SORT_OPTIONS = [
+  { id: 'name', label: 'Name A → Z', compare: (a, b) => a.name.localeCompare(b.name) },
+  { id: 'name_desc', label: 'Name Z → A', compare: (a, b) => b.name.localeCompare(a.name) },
+  { id: 'team', label: 'Team A → Z', compare: (a, b) => a.team.localeCompare(b.team) },
+  { id: 'position', label: 'Position', compare: (a, b) => a.position.localeCompare(b.position) }
+]
+
 function teamLabel(team) {
   if (!team) return 'Team'
   return team.name || team.owner || 'Team'
@@ -21,10 +28,11 @@ export default function LeagueDraft({ league, onUpdate, isMember, user }) {
   const [players, setPlayers] = useState([])
   const [query, setQuery] = useState('')
   const [positionFilter, setPositionFilter] = useState('ALL')
+  const [teamFilter, setTeamFilter] = useState('ALL')
+  const [sortId, setSortId] = useState('name')
   const [loadingPlayers, setLoadingPlayers] = useState(false)
   const [rounds, setRounds] = useState(league.draftSettings.rounds || 12)
   const [lineup, setLineup] = useState(league.draftSettings.lineup || {})
-  const [autoDraftEnabled, setAutoDraftEnabled] = useState(false)
 
   const teams = league.teams || []
   const myTeams = useMemo(
@@ -48,7 +56,6 @@ export default function LeagueDraft({ league, onUpdate, isMember, user }) {
   useEffect(() => {
     setRounds(league.draftSettings.rounds || 12)
     setLineup(league.draftSettings.lineup || lineup)
-    setAutoDraftEnabled(false)
   }, [league.id])
 
   useEffect(() => {
@@ -72,13 +79,16 @@ export default function LeagueDraft({ league, onUpdate, isMember, user }) {
 
   const availablePlayers = useMemo(() => {
     const draftedIds = new Set((league.draftPicks || []).map((p) => p.player.id))
+    const sorter = SORT_OPTIONS.find((s) => s.id === sortId) || SORT_OPTIONS[0]
     return players
       .filter((p) => !draftedIds.has(p.id))
       .filter((p) => p.team && p.team !== 'FA')
       .filter((p) => (positionFilter === 'ALL' ? true : p.position === positionFilter))
+      .filter((p) => (teamFilter === 'ALL' ? true : p.team === teamFilter))
       .filter((p) => p.name.toLowerCase().includes(query.toLowerCase()))
-      .slice(0, 40)
-  }, [players, league.draftPicks, positionFilter, query])
+      .sort(sorter.compare)
+      .slice(0, 50)
+  }, [players, league.draftPicks, positionFilter, teamFilter, query, sortId])
 
   const lineupConfig = useMemo(() => ({
     qb: 1,
@@ -89,11 +99,73 @@ export default function LeagueDraft({ league, onUpdate, isMember, user }) {
     ...lineup
   }), [lineup])
 
+  const requiredRounds = useMemo(() => {
+    const { qb = 0, rb = 0, wr = 0, te = 0, flex = 0 } = lineup
+    return Math.max(1, Number(qb) + Number(rb) + Number(wr) + Number(te) + Number(flex))
+  }, [lineup])
+
+  useEffect(() => {
+    const current = Number(rounds) || 0
+    if (current < requiredRounds) {
+      setRounds(requiredRounds)
+    }
+  }, [requiredRounds, rounds])
+
+  const flexPositions = ['rb', 'wr', 'te']
+
+  const myPrimaryTeam = useMemo(() => {
+    if (myTeams.length) return myTeams[0]
+    return currentTeam || null
+  }, [myTeams, currentTeam])
+
+  const myLineupSlots = useMemo(() => {
+    if (!myPrimaryTeam) return []
+    const picks = (league.draftPicks || []).filter((p) => p.teamId === myPrimaryTeam.id)
+    const used = new Set()
+    const slots = []
+
+    const counts = {
+      qb: Number(lineupConfig.qb || 0),
+      rb: Number(lineupConfig.rb || 0),
+      wr: Number(lineupConfig.wr || 0),
+      te: Number(lineupConfig.te || 0),
+      flex: Number(lineupConfig.flex || 0)
+    }
+
+    const addSlots = (posKey, label) => {
+      for (let i = 0; i < counts[posKey]; i += 1) {
+        const pick = picks.find(
+          (p) =>
+            !used.has(p.pick) && (p.player.position || '').toLowerCase() === posKey
+        )
+        if (pick) used.add(p.pick)
+        slots.push({ slot: label, player: pick?.player || null })
+      }
+    }
+
+    addSlots('qb', 'QB')
+    addSlots('rb', 'RB')
+    addSlots('wr', 'WR')
+    addSlots('te', 'TE')
+
+    for (let i = 0; i < counts.flex; i += 1) {
+      const pick = picks.find(
+        (p) =>
+          !used.has(p.pick) &&
+          flexPositions.includes((p.player.position || '').toLowerCase())
+      )
+      if (pick) used.add(p.pick)
+      slots.push({ slot: 'FLEX', player: pick?.player || null })
+    }
+
+    return slots
+  }, [myPrimaryTeam, league.draftPicks, lineupConfig, flexPositions])
+
   const updateSettings = () => {
     onUpdate((prev) => ({
       ...prev,
       draftSettings: {
-        rounds: Math.max(1, Math.min(30, Number(rounds) || 12)),
+        rounds: Math.max(requiredRounds, Math.min(30, Number(rounds) || requiredRounds)),
         lineup
       }
     }))
@@ -101,7 +173,7 @@ export default function LeagueDraft({ league, onUpdate, isMember, user }) {
 
   const startDraft = () => {
     if (!isMember) return
-    const safeRounds = Math.max(1, Math.min(30, Number(rounds) || 12))
+    const safeRounds = Math.max(requiredRounds, Math.min(30, Number(rounds) || requiredRounds))
     const order = draftOrder.length ? draftOrder : shuffle(teams.map((t) => t.id))
     onUpdate((prev) => ({
       ...prev,
@@ -132,49 +204,6 @@ export default function LeagueDraft({ league, onUpdate, isMember, user }) {
     })
   }
 
-  const pickForCurrentTeam = () => {
-    if (!availablePlayers.length) return null
-    const teamPicks = (league.draftPicks || []).filter((p) => p.teamId === currentTeamId)
-
-    const counts = teamPicks.reduce((acc, pick) => {
-      const pos = pick.player.position?.toLowerCase()
-      if (!pos) return acc
-      acc[pos] = (acc[pos] || 0) + 1
-      return acc
-    }, {})
-
-    const flexPositions = ['rb', 'wr', 'te']
-    const flexLimit = Number(lineupConfig.flex || 0)
-    const openPositions = new Set()
-
-    ALLOWED_POSITIONS.forEach((pos) => {
-      const posKey = pos.toLowerCase()
-      const baseLimit = Number(lineupConfig[posKey] || 0)
-      const isFlexEligible = flexPositions.includes(posKey)
-      const capacity = baseLimit + (isFlexEligible ? flexLimit : 0)
-      if (capacity > 0 && (counts[posKey] || 0) < capacity) {
-        openPositions.add(pos)
-      }
-    })
-
-    const prioritizedPool = openPositions.size
-      ? availablePlayers.filter((p) => openPositions.has(p.position))
-      : availablePlayers
-
-    if (!prioritizedPool.length) return null
-    const choice = prioritizedPool[Math.floor(Math.random() * prioritizedPool.length)]
-    return choice
-  }
-
-  useEffect(() => {
-    if (!autoDraftEnabled) return
-    if (!isMyTurn || isDraftComplete || !league.draftState.started) return
-    const autoPick = pickForCurrentTeam()
-    if (autoPick) {
-      makePick(autoPick)
-    }
-  }, [autoDraftEnabled, isMyTurn, isDraftComplete, availablePlayers, league.draftState.started, currentTeamId, league.draftPicks])
-
   return (
     <div className="draft-layout">
       <div className="draft-panel">
@@ -190,13 +219,14 @@ export default function LeagueDraft({ league, onUpdate, isMember, user }) {
             <span>Rounds</span>
             <input
               type="number"
-              min="1"
+              min={requiredRounds}
               max="30"
               value={rounds}
               onChange={(e) => setRounds(e.target.value)}
               disabled={!isMember || league.draftState.started}
             />
           </label>
+          <p className="card-help">Rounds must cover all roster spots ({requiredRounds} minimum based on lineup).</p>
           <div className="lineup-grid">
             {['qb', 'rb', 'wr', 'te', 'flex'].map((slot) => (
               <label key={slot}>
@@ -237,21 +267,41 @@ export default function LeagueDraft({ league, onUpdate, isMember, user }) {
               <p>Pick {currentPickIndex + 1} of {totalPicks}</p>
               <strong>{teamLabel(currentTeam)}</strong>
               <p>{isMyTurn ? 'It’s your turn to pick.' : 'Waiting on this manager.'}</p>
-              {isMember && (
-                <button
-                  type="button"
-                  className={`auto-draft-button ${autoDraftEnabled ? 'auto-draft-button--active' : ''}`}
-                  onClick={() => setAutoDraftEnabled((prev) => !prev)}
-                  disabled={!league.draftState.started || isDraftComplete}
-                >
-                  {autoDraftEnabled ? 'Auto-draft is ON' : 'Enable auto-draft for my turns'}
-                </button>
-              )}
+              {isMember && <p className="card-help">Select a player below to make your pick.</p>}
             </div>
           ) : (
             <p>Draft not started yet.</p>
           )}
         </div>
+
+        {myPrimaryTeam && (
+          <div className="draft-lineup">
+            <div className="leagues-section__header">
+              <div>
+                <p className="card-label">Your lineup</p>
+                <h3>{myPrimaryTeam.name}</h3>
+              </div>
+              <span className="section-pill">{myLineupSlots.filter((s) => s.player).length}/{myLineupSlots.length} filled</span>
+            </div>
+            <div className="lineup-slots">
+              {myLineupSlots.map((slot, idx) => (
+                <div key={`${slot.slot}-${idx}`} className="lineup-slot">
+                  <span className="lineup-slot__label">{slot.slot}</span>
+                  {slot.player ? (
+                    <div className="lineup-slot__body">
+                      <strong>{slot.player.name}</strong>
+                      <p>{slot.player.position} · {slot.player.team || 'FA'}</p>
+                    </div>
+                  ) : (
+                    <div className="lineup-slot__body lineup-slot__body--empty">
+                      <p>Open spot</p>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="draft-panel">
@@ -260,28 +310,49 @@ export default function LeagueDraft({ league, onUpdate, isMember, user }) {
             <p className="card-label">Players</p>
             <h2>Select next pick</h2>
           </div>
-          <div className="draft-filters">
-            <label className="sr-only" htmlFor="draft-player-search">Search players</label>
-            <input
-              id="draft-player-search"
-              type="text"
-              placeholder="Search players"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
-            <label className="sr-only" htmlFor="draft-position-filter">Filter by position</label>
-            <select
-              id="draft-position-filter"
-              value={positionFilter}
-              onChange={(e) => setPositionFilter(e.target.value)}
-            >
-              <option value="ALL">All</option>
-              <option value="QB">QB</option>
-              <option value="RB">RB</option>
-              <option value="WR">WR</option>
-              <option value="TE">TE</option>
-            </select>
-          </div>
+        </div>
+        <div className="draft-filters">
+          <label className="sr-only" htmlFor="draft-player-search">Search players</label>
+          <input
+            id="draft-player-search"
+            type="text"
+            placeholder="Search players"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+          <label className="sr-only" htmlFor="draft-position-filter">Filter by position</label>
+          <select
+            id="draft-position-filter"
+            value={positionFilter}
+            onChange={(e) => setPositionFilter(e.target.value)}
+          >
+            <option value="ALL">All</option>
+            <option value="QB">QB</option>
+            <option value="RB">RB</option>
+            <option value="WR">WR</option>
+            <option value="TE">TE</option>
+          </select>
+          <label className="sr-only" htmlFor="draft-team-filter">Filter by team</label>
+          <select
+            id="draft-team-filter"
+            value={teamFilter}
+            onChange={(e) => setTeamFilter(e.target.value)}
+          >
+            <option value="ALL">All teams</option>
+            {Array.from(new Set(players.map((p) => p.team).filter(Boolean))).map((t) => (
+              <option key={t} value={t}>{t}</option>
+            ))}
+          </select>
+          <label className="sr-only" htmlFor="draft-sort">Sort players</label>
+          <select
+            id="draft-sort"
+            value={sortId}
+            onChange={(e) => setSortId(e.target.value)}
+          >
+            {SORT_OPTIONS.map((opt) => (
+              <option key={opt.id} value={opt.id}>{opt.label}</option>
+            ))}
+          </select>
         </div>
 
         {loadingPlayers && <p className="card-help">Loading Sleeper player pool…</p>}

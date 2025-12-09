@@ -8,7 +8,7 @@ import {
   memberLabel,
   memberMatches,
   persistLeagues,
-  readLeagues
+  subscribeLeagues
 } from '../utils/leagueStore.js'
 
 function generateCode(existing) {
@@ -39,16 +39,11 @@ export default function LeagueStats() {
   const isAuthed = Boolean(user)
 
   useEffect(() => {
-    let mounted = true
-    ;(async () => {
-      const data = await readLeagues()
-      if (!mounted) return
+    const unsubscribe = subscribeLeagues((data) => {
       const hydrated = data.map(hydrateLeague)
       setLeagues(hydrated)
-    })()
-    return () => {
-      mounted = false
-    }
+    })
+    return () => unsubscribe()
   }, [])
 
   const totalOpenSlots = useMemo(
