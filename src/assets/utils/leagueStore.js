@@ -1,4 +1,8 @@
+import { doc, getDoc, setDoc } from 'firebase/firestore'
+import { db } from '../../firebase.js'
+
 const STORAGE_KEY = 'blt_leagues'
+const LEAGUES_DOC = doc(db, 'meta', 'leagues')
 
 const DEFAULT_LEAGUES = [
   {
@@ -33,21 +37,26 @@ const DEFAULT_LEAGUES = [
   }
 ]
 
-export function readLeagues() {
+export async function readLeagues() {
   try {
-    const stored = JSON.parse(localStorage.getItem(STORAGE_KEY))
-    if (Array.isArray(stored)) return stored
+    const snap = await getDoc(LEAGUES_DOC)
+    if (snap.exists()) {
+      const data = snap.data()
+      if (Array.isArray(data.leagues)) return data.leagues
+    } else {
+      await setDoc(LEAGUES_DOC, { leagues: DEFAULT_LEAGUES })
+    }
   } catch (err) {
-    console.warn('Could not read leagues from storage', err)
+    console.warn('Could not read leagues from Firestore', err)
   }
   return DEFAULT_LEAGUES
 }
 
-export function persistLeagues(next) {
+export async function persistLeagues(next) {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
+    await setDoc(LEAGUES_DOC, { leagues: next })
   } catch (err) {
-    console.warn('Could not persist leagues', err)
+    console.warn('Could not persist leagues to Firestore', err)
   }
 }
 

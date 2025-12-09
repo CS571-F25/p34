@@ -39,8 +39,16 @@ export default function LeagueStats() {
   const isAuthed = Boolean(user)
 
   useEffect(() => {
-    const hydrated = readLeagues().map(hydrateLeague)
-    setLeagues(hydrated)
+    let mounted = true
+    ;(async () => {
+      const data = await readLeagues()
+      if (!mounted) return
+      const hydrated = data.map(hydrateLeague)
+      setLeagues(hydrated)
+    })()
+    return () => {
+      mounted = false
+    }
   }, [])
 
   const totalOpenSlots = useMemo(

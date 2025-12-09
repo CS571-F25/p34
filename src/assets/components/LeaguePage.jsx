@@ -29,8 +29,14 @@ export default function LeaguePage() {
 
   // Load leagues from storage
   useEffect(() => {
-    const stored = readLeagues().map(hydrateLeague)
-    setLeagues(stored)
+    let mounted = true
+    ;(async () => {
+      const stored = (await readLeagues()).map(hydrateLeague)
+      if (mounted) setLeagues(stored)
+    })()
+    return () => {
+      mounted = false
+    }
   }, [])
 
   const league = useMemo(
