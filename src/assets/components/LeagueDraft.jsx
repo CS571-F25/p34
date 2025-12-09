@@ -24,6 +24,7 @@ export default function LeagueDraft({ league, onUpdate, isMember, user }) {
   const [loadingPlayers, setLoadingPlayers] = useState(false)
   const [rounds, setRounds] = useState(league.draftSettings.rounds || 12)
   const [lineup, setLineup] = useState(league.draftSettings.lineup || {})
+  const [autoDraftEnabled, setAutoDraftEnabled] = useState(false)
 
   const teams = league.teams || []
   const myTeams = useMemo(
@@ -47,6 +48,7 @@ export default function LeagueDraft({ league, onUpdate, isMember, user }) {
   useEffect(() => {
     setRounds(league.draftSettings.rounds || 12)
     setLineup(league.draftSettings.lineup || lineup)
+    setAutoDraftEnabled(false)
   }, [league.id])
 
   useEffect(() => {
@@ -77,6 +79,15 @@ export default function LeagueDraft({ league, onUpdate, isMember, user }) {
       .filter((p) => p.name.toLowerCase().includes(query.toLowerCase()))
       .slice(0, 40)
   }, [players, league.draftPicks, positionFilter, query])
+
+  const lineupConfig = useMemo(() => ({
+    qb: 1,
+    rb: 2,
+    wr: 2,
+    te: 1,
+    flex: 2,
+    ...lineup
+  }), [lineup])
 
   const updateSettings = () => {
     onUpdate((prev) => ({
@@ -120,6 +131,49 @@ export default function LeagueDraft({ league, onUpdate, isMember, user }) {
       }
     })
   }
+
+  const pickForCurrentTeam = () => {
+    if (!availablePlayers.length) return null
+    const teamPicks = (league.draftPicks || []).filter((p) => p.teamId === currentTeamId)
+
+    const counts = teamPicks.reduce((acc, pick) => {
+      const pos = pick.player.position?.toLowerCase()
+      if (!pos) return acc
+      acc[pos] = (acc[pos] || 0) + 1
+      return acc
+    }, {})
+
+    const flexPositions = ['rb', 'wr', 'te']
+    const flexLimit = Number(lineupConfig.flex || 0)
+    const openPositions = new Set()
+
+    ALLOWED_POSITIONS.forEach((pos) => {
+      const posKey = pos.toLowerCase()
+      const baseLimit = Number(lineupConfig[posKey] || 0)
+      const isFlexEligible = flexPositions.includes(posKey)
+      const capacity = baseLimit + (isFlexEligible ? flexLimit : 0)
+      if (capacity > 0 && (counts[posKey] || 0) < capacity) {
+        openPositions.add(pos)
+      }
+    })
+
+    const prioritizedPool = openPositions.size
+      ? availablePlayers.filter((p) => openPositions.has(p.position))
+      : availablePlayers
+
+    if (!prioritizedPool.length) return null
+    const choice = prioritizedPool[Math.floor(Math.random() * prioritizedPool.length)]
+    return choice
+  }
+
+  useEffect(() => {
+    if (!autoDraftEnabled) return
+    if (!isMyTurn || isDraftComplete || !league.draftState.started) return
+    const autoPick = pickForCurrentTeam()
+    if (autoPick) {
+      makePick(autoPick)
+    }
+  }, [autoDraftEnabled, isMyTurn, isDraftComplete, availablePlayers, league.draftState.started, currentTeamId, league.draftPicks])
 
   return (
     <div className="draft-layout">
@@ -183,6 +237,16 @@ export default function LeagueDraft({ league, onUpdate, isMember, user }) {
               <p>Pick {currentPickIndex + 1} of {totalPicks}</p>
               <strong>{teamLabel(currentTeam)}</strong>
               <p>{isMyTurn ? 'It’s your turn to pick.' : 'Waiting on this manager.'}</p>
+              {isMember && (
+                <button
+                  type="button"
+                  className={`auto-draft-button ${autoDraftEnabled ? 'auto-draft-button--active' : ''}`}
+                  onClick={() => setAutoDraftEnabled((prev) => !prev)}
+                  disabled={!league.draftState.started || isDraftComplete}
+                >
+                  {autoDraftEnabled ? 'Auto-draft is ON' : 'Enable auto-draft for my turns'}
+                </button>
+              )}
             </div>
           ) : (
             <p>Draft not started yet.</p>

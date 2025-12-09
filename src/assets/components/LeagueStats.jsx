@@ -76,7 +76,9 @@ export default function LeagueStats() {
 
     const me = user.username.trim()
     const leagueName = createForm.name.trim()
-    const size = Math.min(16, Math.max(4, Number(createForm.size) || 10))
+    const rawSize = Number(createForm.size) || 10
+    const clampedSize = Math.min(16, Math.max(2, rawSize))
+    const size = clampedSize % 2 === 0 ? clampedSize : (clampedSize + 1 <= 16 ? clampedSize + 1 : clampedSize - 1)
 
     if (!leagueName) {
       showStatus('warning', 'Name your league to continue.')
@@ -105,7 +107,8 @@ export default function LeagueStats() {
     const next = [...leagues, newLeague]
     saveLeagues(next)
     setCreateForm({ ...createForm, name: '', size })
-    showStatus('success', `Created “${leagueName}”. Share invite code ${code} to bring friends.`)
+    const evenNote = size !== clampedSize ? ' Size adjusted to the nearest even number.' : ''
+    showStatus('success', `Created “${leagueName}”. Share invite code ${code} to bring friends.${evenNote}`)
   }
 
   const joinLeagueByCode = (codeInput) => {
@@ -248,7 +251,7 @@ export default function LeagueStats() {
               <input
                 id="league-size"
                 type="number"
-                min="4"
+                min="2"
                 max="16"
                 value={createForm.size}
                 disabled={!isAuthed}
