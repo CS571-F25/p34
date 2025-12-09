@@ -1,17 +1,18 @@
+// src/components/Layout.jsx
 import { NavLink, Outlet } from 'react-router'
 import NavbarDropdown from './NavbarDropdown.jsx'
 import './Layout.css'
 import { useAuth } from './AuthContext.jsx'
 
-const navLinks = [
-  { to: '/', label: 'Home' },
-  { to: '/players', label: 'Players' },
-  { to: '/league', label: 'Leagues' },
-  { to: '/about', label: 'About' }
-]
-
 export default function Layout() {
   const { user, logout } = useAuth()
+
+  const navLinks = [
+    { to: '/', label: 'Home' },
+    { to: '/players', label: 'Players' },
+    { to: '/league', label: 'Leagues' },
+    { to: '/about', label: 'About' }
+  ]
 
   return (
     <div className="app-shell">
@@ -59,13 +60,16 @@ export default function Layout() {
                 <p className="app-nav__eyebrow">Signed in</p>
                 <strong>@{user.username}</strong>
               </div>
-              <button type="button" className="app-nav__logout" onClick={logout}>
+              <button
+                type="button"
+                className="app-nav__logout"
+                onClick={logout}
+              >
                 Logout
               </button>
             </div>
           )}
 
-          {/* Bootstrap dropdown */}
           <NavbarDropdown />
         </nav>
       </header>
