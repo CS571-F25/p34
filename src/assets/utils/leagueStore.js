@@ -4,38 +4,7 @@ import { db } from '../../firebase.js'
 const STORAGE_KEY = 'blt_leagues'
 const LEAGUES_DOC = doc(db, 'meta', 'leagues')
 
-const DEFAULT_LEAGUES = [
-  {
-    id: 'demo-1',
-    name: 'Sunday Slate',
-    commissioner: 'Morgan Patel',
-    format: 'PPR',
-    size: 10,
-    code: 'SLATE9',
-    createdAt: '2024-08-18T12:00:00Z',
-    members: ['Morgan Patel', 'Jessie Han', 'Chris Lee', 'Taylor Brooks']
-  },
-  {
-    id: 'demo-2',
-    name: 'Rookie Rebuild',
-    commissioner: 'Alex Rivera',
-    format: 'Half-PPR',
-    size: 12,
-    code: 'ROOK13',
-    createdAt: '2024-09-02T15:00:00Z',
-    members: ['Alex Rivera', 'Priya Shah', 'Jordan Wu', 'Ella Chen', 'Sam Carter']
-  },
-  {
-    id: 'demo-3',
-    name: 'Two-Minute Drill',
-    commissioner: 'Jamie Lee',
-    format: 'Standard',
-    size: 8,
-    code: 'DRILL8',
-    createdAt: '2024-09-10T09:00:00Z',
-    members: ['Jamie Lee', 'Pat O’Neal', 'Riley James']
-  }
-]
+const DEFAULT_LEAGUES = []
 
 export async function readLeagues() {
   try {

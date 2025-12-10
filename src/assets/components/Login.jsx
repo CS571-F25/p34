@@ -25,12 +25,12 @@ export default function Login() {
     setForm((prev) => ({ ...prev, [field]: value }))
   }
 
-  const handleSubmit = (evt) => {
+  const handleSubmit = async (evt) => {
     evt.preventDefault()
     setStatus({ type: '', message: '' })
 
     const action = mode === 'login' ? login : register
-    const result = action(form.username, form.password)
+    const result = await action(form.username, form.password)
 
     if (result.ok) {
       setStatus({

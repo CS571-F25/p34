@@ -1,26 +1,10 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react'
+import { collection, doc, getDoc, onSnapshot, setDoc } from 'firebase/firestore'
+import { db } from '../../firebase.js'
 
-const USERS_KEY = 'blt_users'
 const SESSION_KEY = 'blt_session'
 
 const AuthContext = createContext(null)
-
-function readUsers() {
-  try {
-    const raw = JSON.parse(localStorage.getItem(USERS_KEY))
-    return Array.isArray(raw) ? raw : []
-  } catch {
-    return []
-  }
-}
-
-function persistUsers(users) {
-  try {
-    localStorage.setItem(USERS_KEY, JSON.stringify(users))
-  } catch {
-    // ignore write failures for this lightweight demo auth
-  }
-}
 
 function validatePassword(password) {
   if (password.length < 8) {
@@ -38,25 +22,40 @@ export function AuthProvider({ children }) {
   const [hydrated, setHydrated] = useState(false)
 
   useEffect(() => {
-    const existingUsers = readUsers()
-    setUsers(existingUsers)
-    setHydrated(true)
-
-    const session = localStorage.getItem(SESSION_KEY)
-    if (session) {
-      const found = existingUsers.find(
-        (u) => u.username.toLowerCase() === session.toLowerCase()
-      )
-      if (found) setUser(found)
-    }
+    const unsub = onSnapshot(
+      collection(db, 'users'),
+      (snap) => {
+        const fetched = snap.docs.map((d) => d.data()).filter((u) => u?.username)
+        setUsers(fetched)
+        setHydrated(true)
+      },
+      (err) => {
+        console.warn('Could not read users', err)
+        setUsers([])
+        setHydrated(true)
+      }
+    )
+    return () => unsub()
   }, [])
 
   useEffect(() => {
-    if (!hydrated) return
-    persistUsers(users)
-  }, [users, hydrated])
+    const session = localStorage.getItem(SESSION_KEY)
+    if (!session) return
+    const fetchSessionUser = async () => {
+      try {
+        const ref = doc(db, 'users', session.toLowerCase())
+        const snap = await getDoc(ref)
+        if (snap.exists()) {
+          setUser(snap.data())
+        }
+      } catch (err) {
+        console.warn('Could not restore session', err)
+      }
+    }
+    fetchSessionUser()
+  }, [hydrated])
 
-  const register = (usernameInput, password) => {
+  const register = async (usernameInput, password) => {
     const username = usernameInput.trim()
 
     if (username.length < 3) {
@@ -69,25 +68,29 @@ export function AuthProvider({ children }) {
     const passCheck = validatePassword(password)
     if (!passCheck.ok) return passCheck
 
-    const exists = users.some((u) => u.username.toLowerCase() === username.toLowerCase())
-    if (exists) return { ok: false, message: 'That username is already taken.' }
+    const normalized = username.toLowerCase()
+    const ref = doc(db, 'users', normalized)
+    const snap = await getDoc(ref)
+    if (snap.exists()) return { ok: false, message: 'That username is already taken.' }
 
     const newUser = { username, password, createdAt: new Date().toISOString() }
-    const next = [...users, newUser]
-    setUsers(next)
+    await setDoc(ref, newUser)
     setUser(newUser)
-    localStorage.setItem(SESSION_KEY, username)
+    localStorage.setItem(SESSION_KEY, normalized)
     return { ok: true, user: newUser }
   }
 
-  const login = (usernameInput, password) => {
+  const login = async (usernameInput, password) => {
     const username = usernameInput.trim()
-    const account = users.find((u) => u.username.toLowerCase() === username.toLowerCase())
-    if (!account) return { ok: false, message: 'No account found with that username.' }
+    const normalized = username.toLowerCase()
+    const ref = doc(db, 'users', normalized)
+    const snap = await getDoc(ref)
+    if (!snap.exists()) return { ok: false, message: 'No account found with that username.' }
+    const account = snap.data()
     if (account.password !== password) return { ok: false, message: 'Incorrect password.' }
 
     setUser(account)
-    localStorage.setItem(SESSION_KEY, account.username)
+    localStorage.setItem(SESSION_KEY, normalized)
     return { ok: true, user: account }
   }
 
@@ -97,8 +100,8 @@ export function AuthProvider({ children }) {
   }
 
   const value = useMemo(
-    () => ({ user, users, register, login, logout }),
-    [user, users]
+    () => ({ user, users, register, login, logout, hydrated }),
+    [user, users, hydrated]
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
