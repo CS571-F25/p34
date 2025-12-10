@@ -59,7 +59,9 @@ export default function LeagueStats() {
 
   const discoverableLeagues = useMemo(() => {
     const me = user?.username
-    return leagues.filter((l) => !me || !l.members.some((m) => memberMatches(m, me)))
+    return leagues
+      .filter((l) => !me || !l.members.some((m) => memberMatches(m, me)))
+      .filter((l) => !l.size || l.members.length < l.size)
   }, [leagues, user])
 
   const saveLeagues = (next) => {
