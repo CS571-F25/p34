@@ -15,6 +15,21 @@ function teamLabel(team) {
   return team.name || team.owner || 'Team'
 }
 
+function normalizePickPlayer(player) {
+  if (!player) return null
+  return {
+    id: player.id || player.player_id || `${Date.now()}-${Math.random()}`,
+    name: player.name || 'Player',
+    position: player.position || player.fantasy_positions?.[0] || 'FLEX',
+    team: player.team || 'FA'
+  }
+}
+
+function pickPlayer(pick) {
+  if (!pick) return null
+  return normalizePickPlayer(pick.player || pick)
+}
+
 function buildSnakeOrder(order, rounds) {
   const picks = []
   for (let r = 0; r < rounds; r += 1) {
@@ -40,10 +55,15 @@ export default function LeagueDraft({ league, onUpdate, isMember, user }) {
     [teams, user]
   )
 
+  const safeDraftPicks = useMemo(
+    () => (league.draftPicks || []).map((p) => ({ ...p, player: normalizePickPlayer(p.player) })),
+    [league.draftPicks]
+  )
+
   const draftOrder = league.draftOrder || []
   const snakeOrder = useMemo(() => buildSnakeOrder(draftOrder, rounds), [draftOrder, rounds])
   const totalPicks = snakeOrder.length
-  const currentPickIndex = league.draftPicks.length
+  const currentPickIndex = safeDraftPicks.length
   const isDraftComplete = totalPicks > 0 && currentPickIndex >= totalPicks
   const currentTeamId = snakeOrder[currentPickIndex]
   const currentTeam = teams.find((t) => t.id === currentTeamId)
@@ -78,7 +98,11 @@ export default function LeagueDraft({ league, onUpdate, isMember, user }) {
   }, [])
 
   const availablePlayers = useMemo(() => {
-    const draftedIds = new Set((league.draftPicks || []).map((p) => p.player.id))
+    const draftedIds = new Set(
+      safeDraftPicks
+        .map((p) => p.player?.id)
+        .filter(Boolean)
+    )
     const sorter = SORT_OPTIONS.find((s) => s.id === sortId) || SORT_OPTIONS[0]
     return players
       .filter((p) => !draftedIds.has(p.id))
@@ -120,7 +144,8 @@ export default function LeagueDraft({ league, onUpdate, isMember, user }) {
 
   const myLineupSlots = useMemo(() => {
     if (!myPrimaryTeam) return []
-    const picks = (league.draftPicks || []).filter((p) => p.teamId === myPrimaryTeam.id)
+    const picks = safeDraftPicks
+      .filter((p) => p.teamId === myPrimaryTeam.id)
     const used = new Set()
     const slots = []
 
@@ -134,11 +159,11 @@ export default function LeagueDraft({ league, onUpdate, isMember, user }) {
 
     const addSlots = (posKey, label) => {
       for (let i = 0; i < counts[posKey]; i += 1) {
-        const pick = picks.find(
-          (p) =>
-            !used.has(p.pick) && (p.player.position || '').toLowerCase() === posKey
-        )
-        if (pick) used.add(p.pick)
+      const pick = picks.find(
+        (p) =>
+          !used.has(p.pick) && (p.player.position || '').toLowerCase() === posKey
+      )
+        if (pick) used.add(pick.pick)
         slots.push({ slot: label, player: pick?.player || null })
       }
     }
@@ -154,12 +179,12 @@ export default function LeagueDraft({ league, onUpdate, isMember, user }) {
           !used.has(p.pick) &&
           flexPositions.includes((p.player.position || '').toLowerCase())
       )
-      if (pick) used.add(p.pick)
+      if (pick) used.add(pick.pick)
       slots.push({ slot: 'FLEX', player: pick?.player || null })
     }
 
     return slots
-  }, [myPrimaryTeam, league.draftPicks, lineupConfig, flexPositions])
+  }, [myPrimaryTeam, safeDraftPicks, lineupConfig, flexPositions])
 
   const updateSettings = () => {
     onUpdate((prev) => ({
@@ -185,17 +210,19 @@ export default function LeagueDraft({ league, onUpdate, isMember, user }) {
   }
 
   const makePick = (player) => {
+    if (!currentTeamId || !draftOrder.length) return
     if (!isMember || !league.draftState.started || isDraftComplete) return
     if (!isMyTurn) return
     onUpdate((prev) => {
       const picks = prev.draftPicks || []
       const nextPickNumber = picks.length + 1
       const round = Math.floor((nextPickNumber - 1) / draftOrder.length) + 1
-      const playerAlreadyTaken = picks.some((p) => p.player.id === player.id)
+      const playerAlreadyTaken = picks.some((p) => p.player?.id === player.id)
       if (playerAlreadyTaken) return prev
+      const safePlayer = normalizePickPlayer(player)
       return {
         ...prev,
-        draftPicks: [...picks, { pick: nextPickNumber, round, teamId: currentTeamId, player }],
+        draftPicks: [...picks, { pick: nextPickNumber, round, teamId: currentTeamId, player: safePlayer }],
         draftState: {
           ...prev.draftState,
           completed: nextPickNumber >= totalPicks
@@ -250,7 +277,7 @@ export default function LeagueDraft({ league, onUpdate, isMember, user }) {
               type="button"
               className="primary-btn"
               onClick={startDraft}
-              disabled={!isMember || league.draftState.started || teams.length < 2 || draftOrder.length === 0}
+              disabled={!isMember || league.draftState.started || teams.length < 1}
             >
               {league.draftState.started ? 'Draft live' : 'Start draft'}
             </button>
@@ -402,17 +429,18 @@ export default function LeagueDraft({ league, onUpdate, isMember, user }) {
                 <div key={`rlabel-${roundNumber}`} className="draft-board__round">Round {roundNumber}</div>
                 {roundOrder.map((teamId, idx) => {
                   const overall = roundIndex * draftOrder.length + idx + 1
-                  const pick = (league.draftPicks || []).find((p) => p.pick === overall)
+                  const pick = safeDraftPicks.find((p) => p.pick === overall)
                   const isCurrent = overall === currentPickIndex + 1 && !isDraftComplete
+                  const player = pickPlayer(pick)
                   return (
                     <div
                       key={`${teamId}-${overall}`}
                       className={`draft-cell ${isCurrent ? 'draft-cell--active' : ''}`}
                     >
-                      {pick ? (
+                      {player ? (
                         <div className="draft-slot__player">
-                          <strong>{pick.player.name}</strong>
-                          <p>{pick.player.position} · {pick.player.team}</p>
+                          <strong>{player.name}</strong>
+                          <p>{player.position} · {player.team}</p>
                         </div>
                       ) : (
                         <p className="card-help">{isCurrent ? 'On the clock' : 'Waiting'}</p>
