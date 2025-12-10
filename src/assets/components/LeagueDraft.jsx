@@ -423,12 +423,13 @@ export default function LeagueDraft({ league, onUpdate, isMember, user }) {
 
           {[...Array(rounds)].map((_, roundIndex) => {
             const roundNumber = roundIndex + 1
-            const roundOrder = roundNumber % 2 === 1 ? draftOrder : [...draftOrder].reverse()
+            const isOddRound = roundNumber % 2 === 1
             return (
               <Fragment key={roundNumber}>
                 <div key={`rlabel-${roundNumber}`} className="draft-board__round">Round {roundNumber}</div>
-                {roundOrder.map((teamId, idx) => {
-                  const overall = roundIndex * draftOrder.length + idx + 1
+                {draftOrder.map((teamId, idx) => {
+                  const pickIndexInRound = isOddRound ? idx : draftOrder.length - 1 - idx
+                  const overall = roundIndex * draftOrder.length + pickIndexInRound + 1
                   const pick = safeDraftPicks.find((p) => p.pick === overall)
                   const isCurrent = overall === currentPickIndex + 1 && !isDraftComplete
                   const player = pickPlayer(pick)
