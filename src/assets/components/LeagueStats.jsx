@@ -22,6 +22,21 @@ function generateCode(existing) {
   return code
 }
 
+function ordinal(num) {
+  const v = num % 100
+  if (v >= 11 && v <= 13) return `${num}th`
+  switch (num % 10) {
+    case 1:
+      return `${num}st`
+    case 2:
+      return `${num}nd`
+    case 3:
+      return `${num}rd`
+    default:
+      return `${num}th`
+  }
+}
+
 function formatDate(iso) {
   try {
     return new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric' }).format(new Date(iso))
@@ -153,7 +168,7 @@ export default function LeagueStats() {
 
     saveLeagues(next)
     setJoinCode('')
-    showStatus('success', `Joined ${league.name}! You are the ${league.members.length + 1}th manager.`)
+    showStatus('success', `Joined ${league.name}! You are the ${ordinal(league.members.length + 1)} manager.`)
   }
 
   const handleJoin = (evt) => {
