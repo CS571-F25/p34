@@ -204,12 +204,12 @@
 
 .player-card__position--rb {
   background: rgba(16, 185, 129, 0.25);
-  color: #0f766e;
+  color: #0d5e57;
 }
 
 .player-card__position--wr {
   background: rgba(249, 115, 22, 0.25);
-  color: #c2410c;
+  color: #9a360a;
 }
 
 .player-card__position--te {
@@ -235,7 +235,7 @@
 }
 
 .player-card__status--active {
-  color: #16a34a;
+  color: #047857;
 }
 
 .player-card__status--probable {
