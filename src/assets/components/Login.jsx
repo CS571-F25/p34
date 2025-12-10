@@ -55,6 +55,7 @@ export default function Login() {
           <div className="auth-hero__meta">
             <span>Username + password only</span>
             <span>No emails or external logins</span>
+            <span>Do not use real passwords or sensitive information.</span>
           </div>
         </div>
       </section>

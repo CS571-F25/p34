@@ -59,7 +59,9 @@ export default function LeagueStats() {
 
   const discoverableLeagues = useMemo(() => {
     const me = user?.username
-    return leagues.filter((l) => !me || !l.members.some((m) => memberMatches(m, me)))
+    return leagues
+      .filter((l) => !me || !l.members.some((m) => memberMatches(m, me)))
+      .filter((l) => !l.size || l.members.length < l.size)
   }, [leagues, user])
 
   const saveLeagues = (next) => {
@@ -80,8 +82,7 @@ export default function LeagueStats() {
     const me = user.username.trim()
     const leagueName = createForm.name.trim()
     const rawSize = Number(createForm.size) || 10
-    const clampedSize = Math.min(16, Math.max(2, rawSize))
-    const size = clampedSize % 2 === 0 ? clampedSize : (clampedSize + 1 <= 16 ? clampedSize + 1 : clampedSize - 1)
+    const size = Math.min(16, Math.max(1, rawSize))
 
     if (!leagueName) {
       showStatus('warning', 'Name your league to continue.')
@@ -110,8 +111,7 @@ export default function LeagueStats() {
     const next = [...leagues, newLeague]
     saveLeagues(next)
     setCreateForm({ ...createForm, name: '', size })
-    const evenNote = size !== clampedSize ? ' Size adjusted to the nearest even number.' : ''
-    showStatus('success', `Created “${leagueName}”. Share invite code ${code} to bring friends.${evenNote}`)
+    showStatus('success', `Created “${leagueName}”. Share invite code ${code} to bring friends.`)
   }
 
   const joinLeagueByCode = (codeInput) => {
@@ -130,6 +130,12 @@ export default function LeagueStats() {
     const league = leagues.find((l) => l.code === normalized)
     if (!league) {
       showStatus('warning', 'No league found for that invite code.')
+      return
+    }
+
+    const isFull = league.size && league.members?.length >= league.size
+    if (isFull) {
+      showStatus('warning', `${league.name} is already full.`)
       return
     }
 
@@ -254,7 +260,7 @@ export default function LeagueStats() {
               <input
                 id="league-size"
                 type="number"
-                min="2"
+                min="1"
                 max="16"
                 value={createForm.size}
                 disabled={!isAuthed}
